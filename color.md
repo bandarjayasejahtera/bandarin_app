@@ -1,19 +1,7 @@
 
 Export Tailwind code
-Version
-v3
-v4
-v3
-v4
-Color space
-Hex
-OKLCH
-RGB
-HSL
-Hex
-OKLCH
-RGB
-HSL
+Version v4
+
 --color-tuscan-sun-50: #fdf6e8;
 --color-tuscan-sun-100: #faeed1;
 --color-tuscan-sun-200: #f6dda2;

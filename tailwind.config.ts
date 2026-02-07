@@ -2,94 +2,74 @@ import type { Config } from "tailwindcss";
 
 const config: Config = {
   content: [
-    "./pages/**/*.{js,ts,jsx,tsx,mdx}",
-    "./components/**/*.{js,ts,jsx,tsx,mdx}",
-    "./app/**/*.{js,ts,jsx,tsx,mdx}",
+    "./src/pages/**/*.{js,ts,jsx,tsx,mdx}",
+    "./src/components/**/*.{js,ts,jsx,tsx,mdx}",
+    "./src/app/**/*.{js,ts,jsx,tsx,mdx}",
   ],
+  darkMode: "class",
   theme: {
     extend: {
       colors: {
-        border: "hsl(var(--border))",
-        input: "hsl(var(--input))",
-        ring: "hsl(var(--ring))",
-        background: "hsl(var(--background))",
-        foreground: "hsl(var(--foreground))",
-        primary: {
-          DEFAULT: "hsl(var(--primary))",
-          foreground: "hsl(var(--primary-foreground))",
+        // 1. Amber Honey (Accents, Buttons, Highlights)
+        honey: {
+          50: "#fdf7e8",
+          100: "#fbefd0",
+          200: "#f6dea2",
+          300: "#f2ce73",
+          400: "#eebe44",
+          500: "#e9ad16", // Primary Gold (Dark Mode)
+          600: "#bb8b11", // Primary Gold (Light Mode - for contrast)
+          700: "#8c680d",
+          800: "#5d4509",
+          900: "#2f2304",
+          950: "#211803",
         },
-        secondary: {
-          DEFAULT: "hsl(var(--secondary))",
-          foreground: "hsl(var(--secondary-foreground))",
+        // 2. Blue Slate (Secondary/Muted Text)
+        "blue-slate": {
+          50: "#eff3f6",
+          100: "#dfe6ec",
+          200: "#becdda",
+          300: "#9eb5c7",
+          400: "#7d9cb5",
+          500: "#5d83a2",
+          600: "#4a6982",
+          700: "#384f61",
+          800: "#253441",
+          900: "#131a20",
+          950: "#0d1217",
         },
-        destructive: {
-          DEFAULT: "hsl(var(--destructive))",
-          foreground: "hsl(var(--destructive-foreground))",
+        // 3. Deep Space Blue (Primary Brand, Dark Mode BG, Headings)
+        deep: {
+          50: "#e5f4ff",
+          100: "#cce9ff",
+          200: "#99d3ff",
+          300: "#66bdff",
+          400: "#33a7ff",
+          500: "#0091ff", // Brand Blue
+          600: "#0074cc",
+          700: "#005799",
+          800: "#003a66",
+          900: "#001d33", // Light Mode Headings (Navies)
+          950: "#001424", // Dark Mode Background (Deep Space)
         },
-        muted: {
-          DEFAULT: "hsl(var(--muted))",
-          foreground: "hsl(var(--muted-foreground))",
+        // 4. Slate Grey (Neutral Backgrounds & Body Text)
+        grey: {
+          50: "#f0f2f4", // Light Mode Background
+          100: "#e2e6e9",
+          200: "#c5cdd3",
+          300: "#a8b4bd",
+          400: "#8b9aa7",
+          500: "#6e8191",
+          600: "#586774", // Light Mode Secondary Text
+          700: "#424e57",
+          800: "#2c343a",
+          900: "#161a1d", // Light Mode Primary Text
+          950: "#0f1214",
         },
-        accent: {
-          DEFAULT: "hsl(var(--accent))",
-          foreground: "hsl(var(--accent-foreground))",
-        },
-        popover: {
-          DEFAULT: "hsl(var(--popover))",
-          foreground: "hsl(var(--popover-foreground))",
-        },
-        card: {
-          DEFAULT: "hsl(var(--card))",
-          foreground: "hsl(var(--card-foreground))",
-        },
-        // Warna Jenama (Brand Colors) - Diambil dari Login Page
-        "deep-space-blue": {
-          50: "#f0f4fd",
-          100: "#e4ebfb",
-          200: "#cfdcf7",
-          300: "#aec5f2",
-          400: "#86a4ea",
-          500: "#6081e0",
-          600: "#4462d2",
-          700: "#3850be",
-          800: "#32429a",
-          900: "#2d3a7b",
-          950: "#1e244d", // Warna sidebar gelap
-        },
-        "tuscan-sun": {
-          50: "#fffbeb",
-          100: "#fff5c6",
-          200: "#ffea88",
-          300: "#ffdb4a",
-          400: "#ffc80f",
-          500: "#f9aa00", // Warna highlight/button
-          600: "#dd8500",
-          700: "#b05a02",
-          800: "#8e450a",
-          900: "#75390e",
-          950: "#431c02",
-        },
-        "cool-steel": {
-          50: "#f4f6f8",
-          100: "#e3e8ee",
-          200: "#c7d1dc",
-          300: "#9fb0c3",
-          400: "#768da6",
-          500: "#5a708a",
-          600: "#465971",
-          700: "#39485b",
-          800: "#323d4c",
-          900: "#2c3440",
-          950: "#1d232b",
-        },
-      },
-      borderRadius: {
-        lg: "var(--radius)",
-        md: "calc(var(--radius) - 2px)",
-        sm: "calc(var(--radius) - 4px)",
       },
     },
   },
-  plugins: [require("tailwindcss-animate")],
+  plugins: [],
 };
+
 export default config;

@@ -1,20 +1,14 @@
 import type { Metadata } from "next";
-import { Geist, Geist_Mono } from "next/font/google";
+import { Inter } from "next/font/google";
 import "./globals.css";
+import { ThemeProvider } from "@/components/providers/theme-provider";
+import { GreetingPopup } from "@/components/ui/greeting-popup";
 
-const geistSans = Geist({
-  variable: "--font-geist-sans",
-  subsets: ["latin"],
-});
-
-const geistMono = Geist_Mono({
-  variable: "--font-geist-mono",
-  subsets: ["latin"],
-});
+const inter = Inter({ subsets: ["latin"] });
 
 export const metadata: Metadata = {
-  title: "Bandarin",
-  description: "Bandarin App",
+  title: "Bandarin | Jasa Legalitas & Perizinan",
+  description: "Solusi perizinan usaha cepat dan terpercaya.",
 };
 
 export default function RootLayout({
@@ -23,11 +17,14 @@ export default function RootLayout({
   children: React.ReactNode;
 }>) {
   return (
-    <html lang="en">
-      <body
-        className={`${geistSans.variable} ${geistMono.variable} antialiased`}
-      >
-        {children}
+    <html lang="id" className="scroll-smooth">
+      <body className={inter.className}>
+        <ThemeProvider>
+          {/* Greeting Popup muncul global di semua halaman */}
+          <GreetingPopup />
+          
+          {children}
+        </ThemeProvider>
       </body>
     </html>
   );

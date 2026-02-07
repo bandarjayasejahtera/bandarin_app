@@ -18,7 +18,8 @@ export async function login(formData: FormData) {
   })
 
   if (error) {
-    return redirect('/login?message=Gagal login: ' + error.message)
+    // [!code warning] Ubah redirect error ke root '/'
+    return redirect('/?message=Gagal login: ' + error.message)
   }
 
   // Jika sukses, refresh data dan pindah ke dashboard
@@ -40,7 +41,8 @@ export async function signup(formData: FormData) {
   })
 
   if (error) {
-    return redirect('/login?message=Gagal daftar: ' + error.message)
+    // [!code warning] Ubah redirect error ke root '/'
+    return redirect('/?message=Gagal daftar: ' + error.message)
   }
 
   revalidatePath('/', 'layout')
