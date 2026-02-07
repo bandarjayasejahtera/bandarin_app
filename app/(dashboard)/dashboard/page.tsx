@@ -1,13 +1,7 @@
-import { redirect } from "next/navigation";
 import { createClient } from "@/utils/supabase/server";
-import type { Order, OrderStatus } from "@/types/order";
-import {
-  Card,
-  CardContent,
-  CardDescription,
-  CardHeader,
-  CardTitle,
-} from "@/components/ui/card";
+import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
+import { Badge } from "@/components/ui/badge";
+import { Button } from "@/components/ui/button";
 import {
   Table,
   TableBody,
@@ -16,171 +10,141 @@ import {
   TableHeader,
   TableRow,
 } from "@/components/ui/table";
-import { Badge } from "@/components/ui/badge";
-import { Package, Clock, CheckCircle, XCircle } from "lucide-react";
-
-function formatCurrency(value: number) {
-  return new Intl.NumberFormat("en-US", {
-    style: "currency",
-    currency: "USD",
-  }).format(value);
-}
-
-function formatDate(iso: string) {
-  return new Date(iso).toLocaleDateString("en-US", {
-    month: "short",
-    day: "numeric",
-    year: "numeric",
-  });
-}
-
-function getStatusVariant(
-  status: OrderStatus
-): "default" | "secondary" | "destructive" | "outline" {
-  switch (status) {
-    case "done":
-      return "default";
-    case "process":
-      return "secondary";
-    case "cancelled":
-      return "destructive";
-    default:
-      return "outline";
-  }
-}
+import { Activity, CheckCircle, Clock, FileText } from "lucide-react";
+import { redirect } from "next/navigation";
 
 export default async function DashboardPage() {
+  // 1. Koneksi ke Database
   const supabase = await createClient();
 
+  // 2. Cek User Login
   const {
     data: { user },
   } = await supabase.auth.getUser();
+
+  // PENTING: Jika belum login, kita lempar ke halaman login
+  // (Nanti kita buat halaman login-nya setelah ini)
   if (!user) {
-    redirect("/login");
+    return redirect("/login"); 
   }
 
-  const { data: orders = [], error } = await supabase
+  // 3. Ambil Data Pesanan dari Supabase
+  const { data: orders } = await supabase
     .from("orders")
     .select("*")
-    .eq("user_id", user.id)
     .order("created_at", { ascending: false });
 
-  if (error) {
-    console.error("Dashboard orders fetch error:", error);
-  }
-
-  const typedOrders = (orders ?? []) as Order[];
-
+  // 4. Hitung Statistik (Manual sederhana)
   const stats = {
-    total: typedOrders.length,
-    pending: typedOrders.filter((o) => o.status === "pending").length,
-    process: typedOrders.filter((o) => o.status === "process").length,
-    done: typedOrders.filter((o) => o.status === "done").length,
-    cancelled: typedOrders.filter((o) => o.status === "cancelled").length,
+    total: orders?.length || 0,
+    process: orders?.filter((o) => o.status === "process").length || 0,
+    done: orders?.filter((o) => o.status === "done").length || 0,
   };
 
   return (
-    <div className="space-y-8 p-6">
-      <div>
-        <h1 className="text-3xl font-bold tracking-tight">Dashboard</h1>
-        <p className="text-muted-foreground">
-          Overview of your orders and activity.
-        </p>
+    <div className="flex-1 space-y-4 p-8 pt-6">
+      {/* Header Dashboard */}
+      <div className="flex items-center justify-between space-y-2">
+        <div>
+          <h2 className="text-3xl font-bold tracking-tight">Dashboard</h2>
+          <p className="text-muted-foreground">
+            Selamat datang kembali, {user.email}
+          </p>
+        </div>
+        <div className="flex items-center space-x-2">
+          <Button>+ Buat Pengajuan</Button>
+        </div>
       </div>
 
-      <section className="grid gap-4 sm:grid-cols-2 lg:grid-cols-5">
+      {/* Grid Statistik */}
+      <div className="grid gap-4 md:grid-cols-3">
+        {/* Kartu Total */}
         <Card>
           <CardHeader className="flex flex-row items-center justify-between space-y-0 pb-2">
-            <CardTitle className="text-sm font-medium">Total Orders</CardTitle>
-            <Package className="h-4 w-4 text-muted-foreground" />
+            <CardTitle className="text-sm font-medium">Total Pesanan</CardTitle>
+            <FileText className="h-4 w-4 text-muted-foreground" />
           </CardHeader>
           <CardContent>
             <div className="text-2xl font-bold">{stats.total}</div>
+            <p className="text-xs text-muted-foreground">Semua riwayat</p>
           </CardContent>
         </Card>
+
+        {/* Kartu Proses */}
         <Card>
           <CardHeader className="flex flex-row items-center justify-between space-y-0 pb-2">
-            <CardTitle className="text-sm font-medium">Pending</CardTitle>
-            <Clock className="h-4 w-4 text-muted-foreground" />
-          </CardHeader>
-          <CardContent>
-            <div className="text-2xl font-bold">{stats.pending}</div>
-          </CardContent>
-        </Card>
-        <Card>
-          <CardHeader className="flex flex-row items-center justify-between space-y-0 pb-2">
-            <CardTitle className="text-sm font-medium">In Process</CardTitle>
-            <Package className="h-4 w-4 text-muted-foreground" />
+            <CardTitle className="text-sm font-medium">Dalam Proses</CardTitle>
+            <Clock className="h-4 w-4 text-yellow-600" />
           </CardHeader>
           <CardContent>
             <div className="text-2xl font-bold">{stats.process}</div>
+            <p className="text-xs text-muted-foreground">Sedang dikerjakan</p>
           </CardContent>
         </Card>
+
+        {/* Kartu Selesai */}
         <Card>
           <CardHeader className="flex flex-row items-center justify-between space-y-0 pb-2">
-            <CardTitle className="text-sm font-medium">Done</CardTitle>
-            <CheckCircle className="h-4 w-4 text-muted-foreground" />
+            <CardTitle className="text-sm font-medium">Selesai</CardTitle>
+            <CheckCircle className="h-4 w-4 text-green-600" />
           </CardHeader>
           <CardContent>
             <div className="text-2xl font-bold">{stats.done}</div>
+            <p className="text-xs text-muted-foreground">Dokumen terbit</p>
           </CardContent>
         </Card>
-        <Card>
-          <CardHeader className="flex flex-row items-center justify-between space-y-0 pb-2">
-            <CardTitle className="text-sm font-medium">Cancelled</CardTitle>
-            <XCircle className="h-4 w-4 text-muted-foreground" />
-          </CardHeader>
-          <CardContent>
-            <div className="text-2xl font-bold">{stats.cancelled}</div>
-          </CardContent>
-        </Card>
-      </section>
+      </div>
 
+      {/* Tabel Riwayat */}
       <Card>
         <CardHeader>
-          <CardTitle>Recent Orders</CardTitle>
-          <CardDescription>Your latest orders from the store.</CardDescription>
+          <CardTitle>Riwayat Pengajuan Terakhir</CardTitle>
         </CardHeader>
         <CardContent>
-          {typedOrders.length === 0 ? (
-            <div className="flex flex-col items-center justify-center rounded-lg border border-dashed py-12 text-center">
-              <Package className="h-12 w-12 text-muted-foreground" />
-              <h3 className="mt-4 text-lg font-semibold">No orders yet</h3>
-              <p className="mt-2 max-w-sm text-sm text-muted-foreground">
-                When you place an order, it will show up here. Start shopping to
-                see your recent orders.
-              </p>
-            </div>
-          ) : (
-            <Table>
-              <TableHeader>
-                <TableRow>
-                  <TableHead>Order ID</TableHead>
-                  <TableHead>Status</TableHead>
-                  <TableHead>Total</TableHead>
-                  <TableHead>Date</TableHead>
-                </TableRow>
-              </TableHeader>
-              <TableBody>
-                {typedOrders.map((order) => (
+          <Table>
+            <TableHeader>
+              <TableRow>
+                <TableHead>Layanan</TableHead>
+                <TableHead>Status</TableHead>
+                <TableHead>Tanggal</TableHead>
+                <TableHead className="text-right">Biaya</TableHead>
+              </TableRow>
+            </TableHeader>
+            <TableBody>
+              {orders && orders.length > 0 ? (
+                orders.map((order) => (
                   <TableRow key={order.id}>
-                    <TableCell className="font-mono text-xs">
-                      {order.id.slice(0, 8)}…
+                    <TableCell className="font-medium">
+                      {order.service_name}
                     </TableCell>
                     <TableCell>
-                      <Badge variant={getStatusVariant(order.status)}>
+                      <Badge
+                        variant={order.status === "done" ? "default" : "secondary"}
+                        className={
+                            order.status === "done" ? "bg-green-600 hover:bg-green-700" :
+                            order.status === "process" ? "bg-yellow-500 hover:bg-yellow-600" : ""
+                        }
+                      >
                         {order.status}
                       </Badge>
                     </TableCell>
-                    <TableCell>{formatCurrency(order.total)}</TableCell>
-                    <TableCell className="text-muted-foreground">
-                      {formatDate(order.created_at)}
+                    <TableCell>
+                      {new Date(order.created_at).toLocaleDateString("id-ID")}
+                    </TableCell>
+                    <TableCell className="text-right">
+                      Rp {order.amount?.toLocaleString("id-ID") || "0"}
                     </TableCell>
                   </TableRow>
-                ))}
-              </TableBody>
-            </Table>
-          )}
+                ))
+              ) : (
+                <TableRow>
+                  <TableCell colSpan={4} className="h-24 text-center">
+                    Belum ada data.
+                  </TableCell>
+                </TableRow>
+              )}
+            </TableBody>
+          </Table>
         </CardContent>
       </Card>
     </div>

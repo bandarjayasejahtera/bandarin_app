@@ -117,10 +117,22 @@
 }
 
 @layer base {
-  * {
-    @apply border-border outline-ring/50;
-  }
-  body {
-    @apply bg-background text-foreground;
+  :root {
+    /* Paste warna Anda di sini */
+    --color-tuscan-sun-50: #fdf6e8;
+    --color-tuscan-sun-500: #e8a917;
+    --color-tuscan-sun-600: #ba8712;
+
+    --color-deep-space-blue-50: #e5f4ff;
+    --color-deep-space-blue-500: #0091ff;
+    --color-deep-space-blue-600: #0074cc;
+    --color-deep-space-blue-900: #001d33;
+    --color-deep-space-blue-950: #001424;
+
+    --color-cool-steel-50: #f0f2f4;
+    --color-cool-steel-500: #6b8294;
+    --color-cool-steel-900: #151a1e;
+    
+    --radius: 0.5rem;
   }
 }
