@@ -10,8 +10,9 @@ import {
   TableHeader,
   TableRow,
 } from "@/components/ui/table";
-import { Activity, CheckCircle, Clock, FileText } from "lucide-react";
+import { CheckCircle, Clock, FileText } from "lucide-react";
 import { redirect } from "next/navigation";
+import Link from "next/link"; // [!code ++] Tambahan import Link
 
 export default async function DashboardPage() {
   // 1. Koneksi ke Database
@@ -22,10 +23,9 @@ export default async function DashboardPage() {
     data: { user },
   } = await supabase.auth.getUser();
 
-  // PENTING: Jika belum login, kita lempar ke halaman login
-  // (Nanti kita buat halaman login-nya setelah ini)
+  // Jika belum login, redirect ke halaman login
   if (!user) {
-    return redirect("/login"); 
+    return redirect("/login");
   }
 
   // 3. Ambil Data Pesanan dari Supabase
@@ -52,7 +52,10 @@ export default async function DashboardPage() {
           </p>
         </div>
         <div className="flex items-center space-x-2">
-          <Button>+ Buat Pengajuan</Button>
+          {/* [!code ++] Update: Bungkus Button dengan Link */}
+          <Link href="/dashboard/orders/new">
+            <Button>+ Buat Pengajuan</Button>
+          </Link>
         </div>
       </div>
 
@@ -121,8 +124,11 @@ export default async function DashboardPage() {
                       <Badge
                         variant={order.status === "done" ? "default" : "secondary"}
                         className={
-                            order.status === "done" ? "bg-green-600 hover:bg-green-700" :
-                            order.status === "process" ? "bg-yellow-500 hover:bg-yellow-600" : ""
+                          order.status === "done"
+                            ? "bg-green-600 hover:bg-green-700"
+                            : order.status === "process"
+                            ? "bg-yellow-500 hover:bg-yellow-600"
+                            : ""
                         }
                       >
                         {order.status}
@@ -139,7 +145,7 @@ export default async function DashboardPage() {
               ) : (
                 <TableRow>
                   <TableCell colSpan={4} className="h-24 text-center">
-                    Belum ada data.
+                    Belum ada data. Mulai buat pengajuan baru!
                   </TableCell>
                 </TableRow>
               )}
