@@ -432,7 +432,7 @@ export default function Home() {
                 <ul className="space-y-3 text-sm text-cool-steel-600 dark:text-cool-steel-400">
                     <li className="flex items-start gap-3">
                       <MapPin className="h-5 w-5 text-tuscan-sun-500 shrink-0" />
-                      <span>Jl. Jend. Sudirman Kav 52-53, SCBD, Jakarta Selatan 12190</span>
+                      <span>Jl. Lintas Gunungtua - Portibi Padang Lawas Utara Sumatera Utara, Indonesia</span>
                     </li>
                     <li className="flex items-center gap-3">
                       <Clock className="h-5 w-5 text-tuscan-sun-500 shrink-0" /> 
