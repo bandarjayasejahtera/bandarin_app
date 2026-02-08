@@ -1,6 +1,9 @@
+// lib/schemas.ts
 import { z } from "zod";
 
-export const productSchema = z.object({
-  name: z.string().min(3, "Nama minimal 3 huruf"),
-  price: z.coerce.number().min(1000, "Harga minimal 1000"),
+export const loginSchema = z.object({
+  email: z.string().email({ message: "Email tidak valid bro." }),
+  password: z.string().min(6, { message: "Password minimal 6 karakter." }),
 });
+
+export type LoginInput = z.infer<typeof loginSchema>;

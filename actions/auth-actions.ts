@@ -1,50 +1,58 @@
 'use server'
 
-import { revalidatePath } from 'next/cache'
-import { redirect } from 'next/navigation'
-import { createClient } from '@/utils/supabase/server'
+import { loginSchema } from "@/lib/schemas";
+import { createClient } from "@/utils/supabase/server";
+import { redirect } from "next/navigation";
 
-export async function login(formData: FormData) {
-  const supabase = await createClient()
+// --- FUNGSI 1: LOGIN EMAIL & PASSWORD ---
+export async function loginAction(prevState: any, formData: FormData) {
+  // 1. Ambil data dari Form
+  const rawData = Object.fromEntries(formData.entries());
 
-  // Ambil data dari form
-  const email = formData.get('email') as string
-  const password = formData.get('password') as string
+  // 2. Validasi dengan Zod
+  const validated = loginSchema.safeParse(rawData);
 
-  // Proses Login ke Supabase
+  if (!validated.success) {
+    return {
+      success: false,
+      errors: validated.error.flatten().fieldErrors,
+    };
+  }
+
+  const { email, password } = validated.data;
+
+  // 3. Login ke Supabase
+  const supabase = await createClient();
   const { error } = await supabase.auth.signInWithPassword({
     email,
     password,
-  })
+  });
 
   if (error) {
-    // [!code warning] Ubah redirect error ke root '/'
-    return redirect('/?message=Gagal login: ' + error.message)
+    return {
+      success: false,
+      message: "Email atau Password salah!", 
+    };
   }
 
-  // Jika sukses, refresh data dan pindah ke dashboard
-  revalidatePath('/', 'layout')
-  redirect('/dashboard')
+  // 4. Redirect jika sukses
+  redirect("/dashboard");
 }
 
-export async function signup(formData: FormData) {
-  const supabase = await createClient()
+// --- FUNGSI 2: LOGIN GOOGLE (YANG TADI HILANG) ---
+export async function loginWithGoogle() {
+  const supabase = await createClient();
+  
+  const { data, error } = await supabase.auth.signInWithOAuth({
+    provider: 'google',
+    options: {
+      // Pastikan URL ini sudah di-whitelist di Supabase Dashboard -> Auth -> URL Configuration
+      // Dan pastikan variabel NEXT_PUBLIC_SITE_URL ada di .env.local
+      redirectTo: `${process.env.NEXT_PUBLIC_SITE_URL}/auth/callback`,
+    },
+  });
 
-  // Ambil data form
-  const email = formData.get('email') as string
-  const password = formData.get('password') as string
-
-  // Proses Daftar ke Supabase
-  const { error } = await supabase.auth.signUp({
-    email,
-    password,
-  })
-
-  if (error) {
-    // [!code warning] Ubah redirect error ke root '/'
-    return redirect('/?message=Gagal daftar: ' + error.message)
+  if (data.url) {
+    redirect(data.url);
   }
-
-  revalidatePath('/', 'layout')
-  redirect('/dashboard')
 }
