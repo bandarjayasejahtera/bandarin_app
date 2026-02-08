@@ -1,7 +1,9 @@
+//components/auth/auth-form.tsx
+
 'use client'
 
 import { useState, useActionState } from 'react'
-import { loginAction, loginWithGoogle } from '@/actions/auth-actions'
+import { loginAction, loginWithGoogle } from '@/actions/auth/auth-actions'
 import { Building2, Loader2, X } from 'lucide-react'
 
 export function AuthForm({ onClose }: { onClose?: () => void }) {

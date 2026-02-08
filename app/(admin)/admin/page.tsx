@@ -1,0 +1,1 @@
+//(admin)/admin/page.tsx

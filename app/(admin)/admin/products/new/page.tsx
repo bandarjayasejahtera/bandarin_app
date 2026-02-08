@@ -1,0 +1,1 @@
+//admin/products/new/page.tsx

@@ -1,6 +1,8 @@
+//actions/product.ts
+
 'use server'
 
-import { productSchema } from "@/lib/schemas";
+import { productSchema } from "@/lib/applicationSchema/schemas";
 import { createClient } from "@/utils/supabase/server";
 import { revalidatePath } from "next/cache";
 

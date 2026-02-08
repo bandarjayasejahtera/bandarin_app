@@ -1,0 +1,1 @@
+//lib/applicationSchema/productSchema.ts

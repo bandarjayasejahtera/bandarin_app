@@ -2,7 +2,7 @@
 
 import { useActionState, useEffect, useRef } from "react";
 import { Send, ShieldCheck, Loader2 } from "lucide-react";
-import { SubmitButton } from "@/components/submit-button"; 
+import { SubmitButton } from "@/components/shared/submit-button"; 
 
 export function ChatBox({ applicationId, messages, sendMessageAction, currentUserId }: any) {
   const [state, action, isPending] = useActionState(sendMessageAction, null);

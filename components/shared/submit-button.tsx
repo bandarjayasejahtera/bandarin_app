@@ -1,9 +1,11 @@
+//components/shared/submit-button.tsx
+
 'use client'
 
 import { Button } from "@/components/ui/button";
 import { Loader2 } from "lucide-react";
 import { useFormStatus } from "react-dom";
-import { cn } from "@/lib/utils";
+import { cn } from "@/lib/applicationSchema/utils";
 
 interface SubmitButtonProps extends React.ButtonHTMLAttributes<HTMLButtonElement> {
   children: React.ReactNode;

@@ -1,3 +1,5 @@
+//login/page.tsx
+
 import { AuthForm } from "@/components/auth/auth-form"; // Pastikan pakai Named Import { AuthForm }
 
 export default function LoginPage() {

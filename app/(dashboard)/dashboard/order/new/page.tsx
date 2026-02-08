@@ -1,5 +1,5 @@
 import { getServices, createApplication } from "@/actions/order";
-import { SubmitButton } from "@/components/submit-button"; // Kita buat komponen kecil ini nanti biar rapi
+import { SubmitButton } from "@/components/shared/submit-button"; // Kita buat komponen kecil ini nanti biar rapi
 import { Building2, FileText, CheckCircle, ArrowLeft } from "lucide-react";
 import Link from "next/link";
 import { redirect } from "next/navigation";
