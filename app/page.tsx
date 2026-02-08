@@ -2,7 +2,7 @@
 
 import Link from "next/link";
 import { Button } from "@/components/ui/button";
-import { motion } from "framer-motion";
+import { motion, AnimatePresence } from "framer-motion"; // [!code ++] Tambah AnimatePresence
 import {
   ShieldCheck,
   ArrowRight,
@@ -21,14 +21,44 @@ import {
 import { useState } from "react";
 import { ThemeToggle } from "@/components/ui/theme-toggle"; 
 import { GreetingPopup } from "@/components/ui/greeting-popup"; 
+import { AuthForm } from "@/components/auth/auth-form"; // [!code ++] Import AuthForm
 
 export default function Home() {
   const [isMobileMenuOpen, setIsMobileMenuOpen] = useState(false);
+  const [isAuthOpen, setIsAuthOpen] = useState(false); // [!code ++] State Popup
 
   return (
     <div className="min-h-screen font-sans selection:bg-tuscan-sun-500 selection:text-deep-space-blue-950">
       
       <GreetingPopup />
+
+      {/* --- POPUP LOGIN / FLOAT --- */}
+      {/* [!code ++] Bagian Baru: Modal Popup dengan Blur */}
+      <AnimatePresence>
+        {isAuthOpen && (
+          <div className="fixed inset-0 z-[100] flex items-center justify-center p-4">
+            {/* Backdrop Blur yang mengambil background page */}
+            <motion.div 
+              initial={{ opacity: 0 }}
+              animate={{ opacity: 1 }}
+              exit={{ opacity: 0 }}
+              onClick={() => setIsAuthOpen(false)}
+              className="absolute inset-0 bg-deep-space-blue-950/60 backdrop-blur-sm cursor-pointer"
+            />
+            
+            {/* Modal Content */}
+            <motion.div
+              initial={{ opacity: 0, scale: 0.95, y: 20 }}
+              animate={{ opacity: 1, scale: 1, y: 0 }}
+              exit={{ opacity: 0, scale: 0.95, y: 20 }}
+              transition={{ duration: 0.2 }}
+              className="relative z-10 w-full max-w-[400px]"
+            >
+              <AuthForm onClose={() => setIsAuthOpen(false)} />
+            </motion.div>
+          </div>
+        )}
+      </AnimatePresence>
 
       {/* --- NAVBAR (GLASS EFFECT) --- */}
       <header className="fixed top-0 w-full z-50 transition-all duration-300 
@@ -66,19 +96,25 @@ export default function Home() {
             <ThemeToggle />
             <div className="h-6 w-px bg-cool-steel-200 dark:bg-deep-space-blue-800 mx-2"></div>
             
-            <Link href="/login">
-              <Button variant="ghost" className="font-bold text-deep-space-blue-800 dark:text-white hover:bg-deep-space-blue-50 dark:hover:bg-deep-space-blue-900">
-                Masuk
-              </Button>
-            </Link>
-            <Link href="/login?tab=register">
-              <Button className="font-bold shadow-lg hover:shadow-xl transition-all 
+            {/* [!code change] Ganti Link menjadi onClick */}
+            <Button 
+              variant="ghost" 
+              onClick={() => setIsAuthOpen(true)}
+              className="font-bold text-deep-space-blue-800 dark:text-white hover:bg-deep-space-blue-50 dark:hover:bg-deep-space-blue-900"
+            >
+              Masuk
+            </Button>
+            
+            {/* [!code change] Ganti Link menjadi onClick */}
+            <Button 
+              onClick={() => setIsAuthOpen(true)}
+              className="font-bold shadow-lg hover:shadow-xl transition-all 
                 bg-gradient-to-r from-tuscan-sun-500 to-tuscan-sun-600 text-white 
                 dark:text-deep-space-blue-950 dark:from-tuscan-sun-400 dark:to-tuscan-sun-500 
-                hover:brightness-110 border-0">
-                Konsultasi Gratis <ArrowRight className="ml-2 h-4 w-4" />
-              </Button>
-            </Link>
+                hover:brightness-110 border-0"
+            >
+              Konsultasi Gratis <ArrowRight className="ml-2 h-4 w-4" />
+            </Button>
           </div>
 
           {/* Mobile Menu Toggle */}
@@ -99,12 +135,11 @@ export default function Home() {
             <Link href="#layanan" className="text-base font-semibold py-2 text-deep-space-blue-900 dark:text-white" onClick={() => setIsMobileMenuOpen(false)}>Layanan</Link>
             <Link href="#keunggulan" className="text-base font-semibold py-2 text-deep-space-blue-900 dark:text-white" onClick={() => setIsMobileMenuOpen(false)}>Keunggulan</Link>
              <div className="h-px bg-cool-steel-100 dark:bg-deep-space-blue-800 my-2"></div>
-             <Link href="/login">
-               <Button variant="outline" className="w-full justify-center border-cool-steel-300 dark:border-deep-space-blue-700">Masuk</Button>
-             </Link>
-             <Link href="/login?tab=register">
-               <Button className="w-full justify-center bg-tuscan-sun-500 text-deep-space-blue-950 font-bold">Daftar Sekarang</Button>
-             </Link>
+             
+             {/* [!code change] Mobile Menu Buttons */}
+             <Button variant="outline" onClick={() => {setIsAuthOpen(true); setIsMobileMenuOpen(false)}} className="w-full justify-center border-cool-steel-300 dark:border-deep-space-blue-700">Masuk</Button>
+             
+             <Button onClick={() => {setIsAuthOpen(true); setIsMobileMenuOpen(false)}} className="w-full justify-center bg-tuscan-sun-500 text-deep-space-blue-950 font-bold">Daftar Sekarang</Button>
           </div>
         )}
       </header>
@@ -145,13 +180,17 @@ export default function Home() {
             </p>
 
             <div className="flex flex-col sm:flex-row gap-4 pt-2">
-              <Link href="/login?tab=register">
-                <Button size="lg" className="h-14 px-8 text-base font-bold shadow-xl 
+              {/* [!code change] Tombol Hero Utama: Menggunakan onClick popup */}
+              <Button 
+                size="lg" 
+                onClick={() => setIsAuthOpen(true)}
+                className="h-14 px-8 text-base font-bold shadow-xl 
                   bg-deep-space-blue-900 text-white hover:bg-deep-space-blue-800 
-                  dark:bg-tuscan-sun-500 dark:text-deep-space-blue-950 dark:hover:bg-tuscan-sun-400">
-                  Mulai Pengurusan
-                </Button>
-              </Link>
+                  dark:bg-tuscan-sun-500 dark:text-deep-space-blue-950 dark:hover:bg-tuscan-sun-400"
+              >
+                Mulai Pengurusan
+              </Button>
+
               <Link href="#cara-kerja">
                 <Button variant="outline" size="lg" className="h-14 px-8 text-base font-bold border-2 
                   border-cool-steel-300 text-cool-steel-700 hover:bg-white hover:border-deep-space-blue-500
@@ -367,12 +406,16 @@ export default function Home() {
                     Jangan tunda lagi. Amankan nama brand dan izin usaha Anda sebelum diambil orang lain.
                 </p>
                 <div className="pt-4 flex flex-col sm:flex-row justify-center gap-4">
-                    <Link href="/login?tab=register">
-                        <Button size="lg" className="h-14 px-10 text-lg font-bold shadow-xl 
-                          bg-deep-space-blue-950 text-white hover:bg-deep-space-blue-800 border-2 border-transparent">
-                            Buat Akun Sekarang
-                        </Button>
-                    </Link>
+                    {/* [!code change] Tombol CTA Bawah: onClick popup */}
+                    <Button 
+                        size="lg" 
+                        onClick={() => setIsAuthOpen(true)}
+                        className="h-14 px-10 text-lg font-bold shadow-xl 
+                          bg-deep-space-blue-950 text-white hover:bg-deep-space-blue-800 border-2 border-transparent"
+                    >
+                        Buat Akun Sekarang
+                    </Button>
+
                     <Link href="https://wa.me/" target="_blank">
                         <Button size="lg" variant="outline" className="h-14 px-10 text-lg font-bold border-2 
                           bg-transparent text-deep-space-blue-950 border-deep-space-blue-950 hover:bg-deep-space-blue-950 hover:text-white">
