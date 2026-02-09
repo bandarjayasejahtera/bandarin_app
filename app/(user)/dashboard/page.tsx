@@ -2,6 +2,7 @@
 "use client";
 
 import React, { useEffect, useState } from 'react';
+import Link from 'next/link';
 import { 
   Zap, 
   Briefcase, 
@@ -24,8 +25,9 @@ import { createClient } from "@/utils/supabase/client";
 
 export default function UserDashboard() {
   const [showGreet, setShowGreet] = useState(false);
+  const [stats, setStats] = useState({ pending: 0, process: 0, completed: 0 });
   
-  // State awal
+  // State awal greeting
   const [greetingData, setGreetingData] = useState({ 
     title: "Selamat Datang", 
     quote: "Memuat kata mutiara...", 
@@ -43,61 +45,55 @@ export default function UserDashboard() {
   ];
 
   useEffect(() => {
-    const fetchQuote = async () => {
+    const fetchData = async () => {
+      const { data: { user } } = await supabase.auth.getUser();
+      if (!user) return;
+
+      // 1. Ambil Statistik Riil
+      const { data: apps } = await supabase
+        .from('applications')
+        .select('status')
+        .eq('user_id', user.id);
+
+      if (apps) {
+        const counts = apps.reduce((acc: any, curr) => {
+          // Mapping status dari DB ke state stats
+          if (curr.status === 'pending') acc.pending++;
+          if (curr.status === 'process') acc.process++;
+          if (curr.status === 'completed') acc.completed++;
+          return acc;
+        }, { pending: 0, process: 0, completed: 0 });
+        setStats(counts);
+      }
+
+      // 2. Logika Greeting & Quotes
       const hour = new Date().getHours();
-      
-      // Inisialisasi variabel
       let category = "";
       let title = "";
       let icon = Sun;
       let color = "";
 
-      // --- LOGIKA AUTO SOLAR (Waktu) YANG LEBIH EKSPLISIT ---
       if (hour >= 5 && hour < 11) {
-        // Pagi (05.00 - 10.59)
-        category = "pagi"; 
-        title = "Selamat Pagi"; 
-        icon = Sunrise; 
-        color = "text-orange-500";
+        category = "pagi"; title = "Selamat Pagi"; icon = Sunrise; color = "text-orange-500";
       } else if (hour >= 11 && hour < 15) {
-        // Siang (11.00 - 14.59)
-        category = "siang"; 
-        title = "Selamat Siang"; 
-        icon = Sun; 
-        color = "text-yellow-500";
+        category = "siang"; title = "Selamat Siang"; icon = Sun; color = "text-yellow-500";
       } else if (hour >= 15 && hour < 18) {
-        // Sore (15.00 - 17.59)
-        category = "sore"; 
-        title = "Selamat Sore"; 
-        icon = Sun; 
-        color = "text-orange-400";
+        category = "sore"; title = "Selamat Sore"; icon = Sun; color = "text-orange-400";
       } else {
-        // Malam (18.00 - 04.59) -> DITAMBAHKAN SECARA EKSPLISIT DI SINI
-        category = "malam"; 
-        title = "Selamat Malam"; 
-        icon = Moon; 
-        color = "text-indigo-500";
+        category = "malam"; title = "Selamat Malam"; icon = Moon; color = "text-indigo-500";
       }
 
       try {
-        // Mengambil pool 50 quote sesuai kategori waktu
-        const { data, error } = await supabase
+        const { data: quoteData, error } = await supabase
           .from('motivational_quotes')
           .select('quote')
           .eq('category', category)
           .limit(50);
 
-        if (error) throw error;
-
-        if (data && data.length > 0) {
-          // --- RANDOMIZER ---
-          const randomIndex = Math.floor(Math.random() * data.length);
-          const selectedQuote = data[randomIndex].quote;
-
-          // Update state
-          setGreetingData({ title, quote: selectedQuote, icon, color });
-
-          // Cek session storage untuk Popup
+        if (!error && quoteData && quoteData.length > 0) {
+          const randomIndex = Math.floor(Math.random() * quoteData.length);
+          setGreetingData({ title, quote: quoteData[randomIndex].quote, icon, color });
+          
           const hasGreeted = sessionStorage.getItem("bandarin_greeted");
           if (!hasGreeted) {
             setTimeout(() => setShowGreet(true), 1000);
@@ -107,17 +103,14 @@ export default function UserDashboard() {
             }, 6000);
           }
         } else {
-          // Fallback jika database kosong/error tapi waktu berhasil dideteksi
           setGreetingData(prev => ({ ...prev, title, icon, color, quote: "Tetap semangat membangun bisnis Anda!" }));
         }
       } catch (err) {
-        console.error("Gagal mengambil quote:", err);
-        // Tetap update greeting title (Pagi/Siang/Malam) meski quote gagal load
         setGreetingData(prev => ({ ...prev, title, icon, color, quote: "Semoga harimu menyenangkan!" }));
       }
     };
 
-    fetchQuote();
+    fetchData();
   }, [supabase]);
 
   const closeGreeting = () => {
@@ -166,15 +159,11 @@ export default function UserDashboard() {
       {/* --- HEADER DASHBOARD --- */}
       <section className="flex flex-col md:flex-row justify-between gap-6 items-start md:items-center">
         <div className="space-y-1 max-w-2xl">
-          {/* Label Waktu (Pagi/Siang/Sore/Malam) */}
           <div className={`flex items-center gap-2 text-xs font-bold uppercase tracking-widest mb-2 ${greetingData.color}`}>
             <greetingData.icon className="h-4 w-4" />
             <span>{greetingData.title}</span>
           </div>
-
           <h1 className="text-4xl font-black tracking-tighter text-primary">Dashboard Saya</h1>
-          
-          {/* QUOTE DINAMIS */}
           <motion.p 
             key={greetingData.quote}
             initial={{ opacity: 0 }}
@@ -185,19 +174,21 @@ export default function UserDashboard() {
           </motion.p>
         </div>
         
-        <Button className="h-14 px-8 rounded-2xl shadow-xl font-bold bg-primary hover:brightness-110 flex items-center gap-2 transition-all hover:scale-105">
-          <Plus className="h-5 w-5" />
-          Mulai Pengajuan Baru
-        </Button>
+        {/* Tombol Terhubung ke Pengajuan Baru */}
+        <Link href="/dashboard/applications/new">
+          <Button className="h-14 px-8 rounded-2xl shadow-xl font-bold bg-primary hover:brightness-110 flex items-center gap-2 transition-all hover:scale-105">
+            <Plus className="h-5 w-5" />
+            Mulai Pengajuan Baru
+          </Button>
+        </Link>
       </section>
 
-      {/* --- GRID STATUS --- */}
+      {/* --- GRID STATUS DINAMIS --- */}
       <div className="grid gap-6 grid-cols-[repeat(auto-fit,minmax(280px,1fr))]">
         {[
-          { label: "Belum Lunas - Pending", val: "2", icon: Clock, color: "text-orange-500", bg: "bg-orange-50 dark:bg-orange-950/20" },
-          { label: "Proses - Submited", val: "17", icon: FileBadge, color: "text-primary", bg: "bg-primary/5" },
-          { label: "Selesai - Approved", val: "15", icon: CheckCircle2, color: "text-green-500", bg: "bg-green-50 dark:bg-green-950/20" },
-
+          { label: "Belum Lunas - Pending", val: stats.pending.toString(), icon: Clock, color: "text-orange-500", bg: "bg-orange-50 dark:bg-orange-950/20" },
+          { label: "Proses - Submited", val: stats.process.toString(), icon: FileBadge, color: "text-primary", bg: "bg-primary/5" },
+          { label: "Selesai - Approved", val: stats.completed.toString(), icon: CheckCircle2, color: "text-green-500", bg: "bg-green-50 dark:bg-green-950/20" },
         ].map((item, i) => (
           <Card key={i} className="border-none shadow-sm bg-card hover:shadow-md transition-all group">
             <CardContent className="p-8 flex items-center justify-between">

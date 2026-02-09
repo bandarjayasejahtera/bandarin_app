@@ -1,9 +1,13 @@
-// lib/schemas.ts
+// lib/applicationSchema/schemas.ts
 import { z } from "zod";
 
-export const loginSchema = z.object({
-  email: z.string().email({ message: "Email tidak valid bro." }),
-  password: z.string().min(6, { message: "Password minimal 6 karakter." }),
+// ... existing loginSchema ...
+
+export const applicationSchema = z.object({
+  service_id: z.string().min(1, { message: "Pilih layanan terlebih dahulu." }),
+  company_name: z.string().min(3, { message: "Nama perusahaan minimal 3 karakter." }),
+  company_address: z.string().optional(),
+  notes: z.string().optional(),
 });
 
-export type LoginInput = z.infer<typeof loginSchema>;
+export type ApplicationInput = z.infer<typeof applicationSchema>;
