@@ -195,8 +195,9 @@ export default function UserDashboard() {
       <div className="grid gap-6 grid-cols-[repeat(auto-fit,minmax(280px,1fr))]">
         {[
           { label: "Belum Lunas - Pending", val: "2", icon: Clock, color: "text-orange-500", bg: "bg-orange-50 dark:bg-orange-950/20" },
-          { label: "Proses", val: "15", icon: CheckCircle2, color: "text-green-500", bg: "bg-green-50 dark:bg-green-950/20" },
-          { label: "Selesai - Perizinan Terbit", val: "17", icon: FileBadge, color: "text-primary", bg: "bg-primary/5" },
+          { label: "Proses - Submited", val: "17", icon: FileBadge, color: "text-primary", bg: "bg-primary/5" },
+          { label: "Selesai - Approved", val: "15", icon: CheckCircle2, color: "text-green-500", bg: "bg-green-50 dark:bg-green-950/20" },
+
         ].map((item, i) => (
           <Card key={i} className="border-none shadow-sm bg-card hover:shadow-md transition-all group">
             <CardContent className="p-8 flex items-center justify-between">
