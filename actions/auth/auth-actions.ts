@@ -1,5 +1,4 @@
-//actions/auth/auth-actions.ts
-
+// actions/auth/auth-actions.ts
 'use server'
 
 import { createClient } from "@/utils/supabase/server";
@@ -14,9 +13,14 @@ export async function loginAction(prevState: any, formData: FormData) {
   const email = formData.get("email") as string;
   const password = formData.get("password") as string;
 
-  // Ambil data khusus pendaftaran (field ini tidak ada di form login biasa)
+  // Ambil data khusus pendaftaran
   const phone = formData.get("phone") as string;
   const confirmPassword = formData.get("confirmPassword") as string;
+  
+  /** * FITUR UX: Dominasi Tangan (Handedness)
+   * Mengambil nilai dari Toggle Switch (contoh value: 'left' atau 'right')
+   */
+  const handedness = formData.get("handedness") as string;
 
   // ==========================================
   // LOGIKA REGISTER (JIKA ADA INPUT NOMOR HP)
@@ -27,15 +31,22 @@ export async function loginAction(prevState: any, formData: FormData) {
       return { message: "Password dan konfirmasi password tidak cocok." };
     }
 
-    // 2. Daftar ke Supabase
+    // 2. Validasi Wajib (Required) untuk Dominasi Tangan
+    // Memastikan user memilih Kidal atau Kanan untuk UX yang sempurna
+    if (!handedness) {
+      return { message: "Pilihan dominan tangan (Kidal/Kanan) wajib diisi untuk kenyamanan penggunaan." };
+    }
+
+    // 3. Daftar ke Supabase
     const { data, error } = await supabase.auth.signUp({
       email,
       password,
       options: {
-        // Data ini dikirim agar Trigger SQL 'handle_new_user' 
-        // bisa memasukkannya ke tabel 'profiles'
+        // Data metadata dikirim agar Trigger SQL 'handle_new_user' 
+        // bisa memasukkannya ke tabel 'profiles' secara otomatis
         data: {
           phone: phone,
+          handedness: handedness, // Menyimpan preferensi UX Kidal/Kanan
         },
       },
     });
@@ -45,14 +56,12 @@ export async function loginAction(prevState: any, formData: FormData) {
       return { message: error.message || "Gagal mendaftar." };
     }
 
-    // 3. Cek Auto-Login (Jika "Confirm Email" dimatikan di Supabase)
-    // Jika sesi ada, berarti user sudah terverifikasi otomatis.
+    // 4. Cek Auto-Login
     if (data.session) {
       revalidatePath("/", "layout");
       redirect("/dashboard");
     }
 
-    // 4. Jika butuh verifikasi email
     return { 
       message: "Pendaftaran berhasil! Silakan cek email Anda untuk verifikasi akun sebelum login." 
     };
@@ -70,7 +79,6 @@ export async function loginAction(prevState: any, formData: FormData) {
     if (error) {
       console.error("Login Error:", error.message);
       
-      // Custom pesan error agar lebih ramah pengguna
       if (error.message.includes("Invalid login")) {
         return { message: "Email atau password salah." };
       }
@@ -81,7 +89,6 @@ export async function loginAction(prevState: any, formData: FormData) {
       return { message: error.message };
     }
 
-    // Login Sukses -> Redirect ke Dashboard
     revalidatePath("/", "layout");
     redirect("/dashboard");
   }

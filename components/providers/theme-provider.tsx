@@ -1,4 +1,4 @@
-//components/providers/theme-provider.tsx
+// components/providers/theme-provider.tsx
 "use client";
 
 import React, { createContext, useContext, useEffect, useState } from "react";
@@ -8,6 +8,7 @@ type Theme = "light" | "dark" | "auto";
 
 interface ThemeContextType {
   theme: Theme;
+  resolvedTheme: "light" | "dark";
   setTheme: (theme: Theme) => void;
   toggleTheme: () => void;
 }
@@ -15,71 +16,65 @@ interface ThemeContextType {
 const ThemeContext = createContext<ThemeContextType | undefined>(undefined);
 
 export function ThemeProvider({ children }: { children: React.ReactNode }) {
-  // Ambil tema dari localStorage jika ada, default 'light'
   const [theme, setThemeState] = useState<Theme>("light");
+  const [resolvedTheme, setResolvedTheme] = useState<"light" | "dark">("light");
   const [mounted, setMounted] = useState(false);
 
   useEffect(() => {
+    setMounted(true);
     const savedTheme = localStorage.getItem("bandarin-theme") as Theme;
     if (savedTheme) setThemeState(savedTheme);
-    setMounted(true);
   }, []);
 
-  // Logic Utama Perubahan Tema
   useEffect(() => {
-    const root = window.document.documentElement;
-    root.classList.remove("light", "dark");
+    if (!mounted) return;
 
-    const applyTheme = (mode: "light" | "dark") => {
+    const root = window.document.documentElement;
+    
+    const applyClass = (mode: "light" | "dark") => {
+      root.classList.remove("light", "dark");
       root.classList.add(mode);
+      setResolvedTheme(mode);
+      root.style.colorScheme = mode;
     };
 
-    if (theme === "auto") {
-      // Logic Auto Solar
+    const handleAutoTheme = () => {
+      const now = new Date();
       if ("geolocation" in navigator) {
         navigator.geolocation.getCurrentPosition(
           (position) => {
             const { latitude, longitude } = position.coords;
             const { sunrise, sunset } = getSunTimes(latitude, longitude);
-            const now = new Date();
-
-            if (now >= sunrise && now < sunset) {
-              applyTheme("light");
-            } else {
-              applyTheme("dark");
-            }
+            applyClass(now >= sunrise && now < sunset ? "light" : "dark");
           },
-          (error) => {
-            console.warn("Izin lokasi ditolak, fallback ke jam sistem (06-18)", error);
-            const hour = new Date().getHours();
-            applyTheme(hour >= 6 && hour < 18 ? "light" : "dark");
+          () => {
+            const hour = now.getHours();
+            applyClass(hour >= 6 && hour < 18 ? "light" : "dark");
           }
         );
       } else {
-        // Fallback jika browser tidak support geo
-        const hour = new Date().getHours();
-        applyTheme(hour >= 6 && hour < 18 ? "light" : "dark");
+        const hour = now.getHours();
+        applyClass(hour >= 6 && hour < 18 ? "light" : "dark");
       }
-    } else {
-      // Manual Mode
-      applyTheme(theme);
-    }
+    };
 
-    // Simpan ke storage
+    if (theme === "auto") handleAutoTheme();
+    else applyClass(theme);
+
     localStorage.setItem("bandarin-theme", theme);
-  }, [theme]);
+  }, [theme, mounted]);
 
-  // Fungsi Toggle: Light -> Dark -> Auto -> Light
   const toggleTheme = () => {
-    if (theme === "light") setThemeState("dark");
-    else if (theme === "dark") setThemeState("auto");
-    else setThemeState("light");
+    setThemeState((prev) => {
+      if (prev === "light") return "dark";
+      if (prev === "dark") return "auto";
+      return "light";
+    });
   };
 
-  if (!mounted) return null;
-
+  // Selalu return Provider agar hook useTheme tidak error di komponen anak
   return (
-    <ThemeContext.Provider value={{ theme, setTheme: setThemeState, toggleTheme }}>
+    <ThemeContext.Provider value={{ theme, resolvedTheme, setTheme: setThemeState, toggleTheme }}>
       {children}
     </ThemeContext.Provider>
   );
@@ -87,8 +82,6 @@ export function ThemeProvider({ children }: { children: React.ReactNode }) {
 
 export const useTheme = () => {
   const context = useContext(ThemeContext);
-  if (context === undefined) {
-    throw new Error("useTheme must be used within a ThemeProvider");
-  }
+  if (context === undefined) throw new Error("useTheme must be used within a ThemeProvider");
   return context;
 };
