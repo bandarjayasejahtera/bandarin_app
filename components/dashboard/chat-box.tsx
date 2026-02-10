@@ -1,78 +1,107 @@
-'use client'
+"use client";
 
-import { useActionState, useEffect, useRef } from "react";
-import { Send, ShieldCheck, Loader2 } from "lucide-react";
-import { SubmitButton } from "@/components/shared/submit-button"; 
+import React, { useEffect, useState, useRef } from "react";
+import { createClient } from "@/utils/supabase/client";
+import { Send, User, ShieldCheck, Loader2 } from "lucide-react";
+import { Button } from "@/components/ui/button";
+import { Input } from "@/components/ui/input";
 
-export function ChatBox({ applicationId, messages, sendMessageAction, currentUserId }: any) {
-  const [state, action, isPending] = useActionState(sendMessageAction, null);
-  const formRef = useRef<HTMLFormElement>(null);
+export function ChatBox({ applicationId, initialMessages, currentUserId }: any) {
+  const [messages, setMessages] = useState(initialMessages);
+  const [newMessage, setNewMessage] = useState("");
+  const [sending, setSending] = useState(false);
   const scrollRef = useRef<HTMLDivElement>(null);
+  const supabase = createClient();
 
+  // 1. AKTIFKAN REALTIME LISTENER
+  useEffect(() => {
+    const channel = supabase
+      .channel(`chat-${applicationId}`)
+      .on(
+        'postgres_changes',
+        {
+          event: 'INSERT',
+          schema: 'public',
+          table: 'application_messages',
+          filter: `application_id=eq.${applicationId}`,
+        },
+        (payload) => {
+          setMessages((prev: any) => [...prev, payload.new]);
+        }
+      )
+      .subscribe();
+
+    return () => {
+      supabase.removeChannel(channel);
+    };
+  }, [applicationId, supabase]);
+
+  // Auto scroll ke bawah saat ada pesan baru
   useEffect(() => {
     if (scrollRef.current) {
       scrollRef.current.scrollTop = scrollRef.current.scrollHeight;
     }
-    if (state?.message === 'success' && formRef.current) {
-        formRef.current.reset();
-    }
-  }, [messages, state]);
+  }, [messages]);
+
+  const handleSend = async (e: React.FormEvent) => {
+    e.preventDefault();
+    if (!newMessage.trim()) return;
+
+    setSending(true);
+    const { error } = await supabase
+      .from('application_messages')
+      .insert({
+        application_id: applicationId,
+        user_id: currentUserId,
+        message: newMessage,
+      });
+
+    if (error) alert("Gagal mengirim pesan");
+    setNewMessage("");
+    setSending(false);
+  };
 
   return (
-    <div className="flex flex-col h-[500px] bg-gray-50 rounded-xl border border-gray-200 overflow-hidden shadow-sm">
-      <div className="bg-white p-4 border-b flex items-center gap-3 shadow-sm z-10">
-        <div className="h-9 w-9 bg-blue-100 rounded-full flex items-center justify-center text-blue-600">
-          <ShieldCheck className="h-5 w-5" />
-        </div>
-        <div>
-          <h4 className="font-bold text-gray-800 text-sm">Konsultasi Admin</h4>
-          <p className="text-xs text-green-600 flex items-center gap-1 font-medium">
-            <span className="w-2 h-2 bg-green-500 rounded-full animate-pulse"></span> Online
-          </p>
-        </div>
+    <div className="flex flex-col h-[500px] bg-white dark:bg-slate-900 rounded-3xl border border-slate-200 dark:border-slate-800 shadow-xl overflow-hidden">
+      {/* Header Chat */}
+      <div className="p-4 border-b bg-slate-50 dark:bg-slate-800/50 flex items-center gap-2">
+        <div className="h-2 w-2 rounded-full bg-green-500 animate-pulse" />
+        <span className="text-xs font-black uppercase tracking-widest text-slate-500">Diskusi Proyek</span>
       </div>
 
-      <div ref={scrollRef} className="flex-1 overflow-y-auto p-4 space-y-4 bg-gray-50/50">
-        {messages && messages.length > 0 ? (
-          messages.map((msg: any) => {
-            const isMe = msg.user_id === currentUserId;
-            return (
-              <div key={msg.id} className={`flex ${isMe ? 'justify-end' : 'justify-start'}`}>
-                <div className={`max-w-[85%] rounded-2xl p-3 text-sm shadow-sm ${
-                  isMe 
-                    ? 'bg-blue-600 text-white rounded-br-none' 
-                    : 'bg-white border border-gray-100 text-gray-800 rounded-bl-none'
-                }`}>
-                  <p className="leading-relaxed">{msg.message}</p>
-                  <p className={`text-[10px] mt-1 text-right ${isMe ? 'text-blue-200' : 'text-gray-400'}`}>
-                    {new Date(msg.created_at).toLocaleTimeString('id-ID', { hour: '2-digit', minute: '2-digit' })}
-                  </p>
-                </div>
+      {/* Area Pesan */}
+      <div ref={scrollRef} className="flex-1 overflow-y-auto p-4 space-y-4 scrollbar-hide">
+        {messages.map((msg: any) => {
+          const isMe = msg.user_id === currentUserId;
+          return (
+            <div key={msg.id} className={`flex ${isMe ? 'justify-end' : 'justify-start'}`}>
+              <div className={`max-w-[80%] p-3 rounded-2xl text-sm font-medium shadow-sm ${
+                isMe 
+                ? 'bg-primary text-white rounded-tr-none' 
+                : 'bg-slate-100 text-slate-800 rounded-tl-none'
+              }`}>
+                {msg.message}
+                <p className={`text-[9px] mt-1 opacity-60 ${isMe ? 'text-right' : 'text-left'}`}>
+                  {new Date(msg.created_at).toLocaleTimeString([], { hour: '2-digit', minute: '2-digit' })}
+                </p>
               </div>
-            );
-          })
-        ) : (
-          <div className="flex flex-col items-center justify-center h-full text-gray-400 text-sm">
-            <p>Mulai diskusi dengan tim kami.</p>
-          </div>
-        )}
+            </div>
+          );
+        })}
       </div>
 
-      <div className="p-3 bg-white border-t">
-        <form ref={formRef} action={action} className="flex gap-2">
-          <input type="hidden" name="application_id" value={applicationId} />
-          <input 
-            type="text" 
-            name="message" 
-            placeholder="Tulis pesan..." 
-            className="flex-1 bg-gray-100 border-0 rounded-full px-5 py-3 text-sm focus:ring-2 focus:ring-blue-500 outline-none transition-all"
-            autoComplete="off"
-          />
-          <SubmitButton isLoading={isPending} className="rounded-full w-12 h-12 p-0 bg-blue-900 hover:bg-blue-800">
-             {!isPending && <Send className="h-5 w-5 ml-0.5" />}
-          </SubmitButton>
-        </form>
-      </div>
+      {/* Input Chat */}
+      <form onSubmit={handleSend} className="p-4 border-t flex gap-2">
+        <Input 
+          value={newMessage}
+          onChange={(e) => setNewMessage(e.target.value)}
+          placeholder="Tulis pesan..."
+          className="rounded-xl border-2 focus-visible:ring-primary/20"
+        />
+        <Button size="icon" className="rounded-xl shrink-0 h-10 w-10" disabled={sending}>
+          {sending ? <Loader2 className="animate-spin" /> : <Send size={18} />}
+        </Button>
+      </form>
     </div>
   );
 }

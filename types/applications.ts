@@ -1,23 +1,22 @@
-export type ApplicationStatus = 'pending' | 'process' | 'review' | 'completed' | 'cancelled';
+// types/applications.ts
+export type ApplicationStatus = 'pending' | 'quoted' | 'process' | 'review' | 'completed' | 'cancelled';
 
 export type Application = {
   id: string;
   user_id: string;
-  service_id: string; // Bukan product_id lagi
+  service_id: string;
   status: ApplicationStatus;
-  company_name: string;
-  company_address?: string;
-  notes?: string;
+  
+  // Data dinamis dari form_data di DB
+  form_data: Record<string, any>; 
+  
+  // Data CRM
+  quoted_price?: number;
+  assigned_agent_id?: string;
+  admin_notes?: string;
+  
   created_at: string;
   updated_at: string;
   
-  // Relasi (Join)
-  profiles?: {
-    full_name: string;
-    email: string;
-  };
-  services?: { // Bukan products
-    name: string;
-    price: number;
-  };
+  // ... relasi lainnya
 };

@@ -1,4 +1,3 @@
-// app/(user)/layout.tsx
 import { createClient } from "@/utils/supabase/server";
 import { redirect } from "next/navigation";
 import Link from "next/link";
@@ -6,7 +5,6 @@ import {
   FileText,
   LogOut,
   ShieldCheck,
-  Bell,
   Settings,
   LayoutDashboard,
 } from "lucide-react";
@@ -21,6 +19,9 @@ import {
 } from "@/components/ui/dropdown-menu";
 import { ThemeToggle } from "@/components/ui/theme-toggle";
 import { GreetingPopup } from "@/components/ui/greeting-popup";
+
+// IMPORT KOMPONEN NOTIFIKASI BARU
+import { NotificationBell } from "@/components/dashboard/notification-bell";
 
 export default async function UserDashboardLayout({
   children,
@@ -69,10 +70,8 @@ export default async function UserDashboardLayout({
         <div className={`flex items-center gap-2 sm:gap-4 ${isLeftHanded ? "flex-row-reverse" : "flex-row"}`}>
           <ThemeToggle />
           
-          <Button variant="ghost" size="icon" className="relative hover:bg-accent rounded-full h-9 w-9">
-            <Bell className="h-5 w-5" />
-            <span className="absolute top-2.5 right-2.5 w-2 h-2 bg-tuscan-sun-500 rounded-full border-2 border-card"></span>
-          </Button>
+          {/* INTEGRASI LONCENG NOTIFIKASI REAL-TIME */}
+          <NotificationBell userId={user.id} />
 
           <div className="h-8 w-px bg-border mx-1 hidden sm:block"></div>
 
@@ -105,15 +104,15 @@ export default async function UserDashboardLayout({
               <DropdownMenuItem asChild>
                 <Link href="/dashboard" className={`flex items-center gap-3 cursor-pointer py-2.5 px-3 rounded-md hover:bg-accent group ${isLeftHanded ? "flex-row-reverse text-right" : ""}`}>
                   <LayoutDashboard className="h-5 w-5 text-slate-600 group-hover:text-primary transition-colors" />
-                  <span className="font-bold text-slate-800 dark:text-slate-200">Dashboard Saya</span>
+                  <span className="font-bold text-slate-800 dark:text-slate-200">Dashboard Utama</span>
                 </Link>
               </DropdownMenuItem>
               
-              {/* ITEM: PENGAJUAN SAYA */}
+              {/* ITEM: PENGAJUAN SAYA (Update ke /applications) */}
               <DropdownMenuItem asChild>
-                <Link href="/dashboard/orders" className={`flex items-center gap-3 cursor-pointer py-2.5 px-3 rounded-md hover:bg-accent group ${isLeftHanded ? "flex-row-reverse text-right" : ""}`}>
+                <Link href="/dashboard/applications" className={`flex items-center gap-3 cursor-pointer py-2.5 px-3 rounded-md hover:bg-accent group ${isLeftHanded ? "flex-row-reverse text-right" : ""}`}>
                   <FileText className="h-5 w-5 text-slate-600 group-hover:text-primary transition-colors" />
-                  <span className="font-bold text-slate-800 dark:text-slate-200">Pengajuan Saya</span>
+                  <span className="font-bold text-slate-800 dark:text-slate-200">Riwayat Pengajuan</span>
                 </Link>
               </DropdownMenuItem>
 
