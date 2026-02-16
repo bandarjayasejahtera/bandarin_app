@@ -12,13 +12,15 @@ export interface ChatBoxAdminProps {
   className?: string;
   title?: string;
   subtitle?: string;
+  /** Called when the other user (client) is typing */
+  onTypingChange?: (isTyping: boolean) => void;
 }
 
 /**
  * Chat box untuk admin (halaman detail order).
  * Menggunakan suara notifikasi admin + mendukung embed (className, title, subtitle).
  */
-export function ChatBox(props: ChatBoxAdminProps) {
+export function ChatBoxAdmin(props: ChatBoxAdminProps) {
   return (
     <ChatBoxCore
       applicationId={props.applicationId}
@@ -28,6 +30,7 @@ export function ChatBox(props: ChatBoxAdminProps) {
       className={props.className}
       title={props.title}
       subtitle={props.subtitle}
+      onTypingChange={props.onTypingChange}
     />
   );
 }

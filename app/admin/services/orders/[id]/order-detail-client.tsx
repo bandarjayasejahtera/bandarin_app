@@ -18,7 +18,7 @@ import { Badge } from "@/components/ui/badge";
 import { Card, CardContent, CardHeader, CardTitle, CardDescription } from "@/components/ui/card";
 import { Separator } from "@/components/ui/separator";
 import { Avatar, AvatarFallback, AvatarImage } from "@/components/ui/avatar";
-import { ChatBox } from "@/components/dashboard/chat-box-admin";
+import { ChatBoxAdmin } from "@/components/dashboard/chat-box-admin";
 import {
   Select,
   SelectContent,
@@ -82,6 +82,7 @@ export default function OrderDetailClient({ initialOrder, initialMessages, initi
   const [isConnected, setIsConnected] = useState(false);
   const [isEditingPrice, setIsEditingPrice] = useState(false);
   const [priceEditValue, setPriceEditValue] = useState("");
+  const [clientIsTyping, setClientIsTyping] = useState(false);
 
   useEffect(() => {
     if (initialCurrentUserId) {
@@ -443,17 +444,19 @@ export default function OrderDetailClient({ initialOrder, initialMessages, initi
             </Card>
         </div>
 
-        {/* --- RIGHT COLUMN: CHAT (shared ChatBox) --- */}
+        {/* --- RIGHT COLUMN: CHAT (Card nama client, fixed size + scroll, typing indicator) --- */}
         <div className="lg:col-span-8 flex flex-col min-h-[420px] lg:min-h-[calc(100vh-12rem)] overflow-hidden">
+          {/* Client Info Card (fixed size + scroll) */}
           {currentUserId ? (
-            <ChatBox
+            <ChatBoxAdmin
               key={order.id}
               applicationId={order.id}
               initialMessages={initialMessages}
               currentUserId={currentUserId}
-              className="flex-1 min-h-0"
-              title="Diskusi & Berkas"
+              className="flex-1 flex flex-col min-h-0 w-full max-h-[calc(100vh-10rem)]"
+              title={order.profiles?.full_name || "Tanpa Nama"}
               subtitle="Komunikasi resmi dengan klien"
+              onTypingChange={setClientIsTyping}
             />
           ) : null}
         </div>

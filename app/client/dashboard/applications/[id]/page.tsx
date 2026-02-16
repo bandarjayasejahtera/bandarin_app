@@ -3,7 +3,7 @@ export const dynamic = "force-dynamic";
 
 import { createClient } from "@/utils/supabase/server";
 import { notFound, redirect } from "next/navigation";
-import { ChatBox } from "@/components/dashboard/chat-box-client";
+import { ChatBoxClient } from "@/components/dashboard/chat-box-client";
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
 import { Badge } from "@/components/ui/badge";
 import { Button } from "@/components/ui/button";
@@ -194,7 +194,7 @@ export default async function UserApplicationDetailPage({ params }: { params: Pr
 
         {/* --- RIGHT COLUMN: CHAT (4 Cols) --- */}
         <div className="lg:col-span-4 lg:sticky lg:top-8 h-[calc(100vh-100px)] min-h-[600px] flex flex-col">
-          <ChatBox 
+          <ChatBoxClient 
             applicationId={id} 
             initialMessages={messages || []} 
             currentUserId={user.id} 
