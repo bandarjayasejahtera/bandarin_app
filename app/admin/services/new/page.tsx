@@ -1,4 +1,4 @@
-import { ServiceFormClient } from "@/app/(admin)/admin/services/new/service-form-client";
+import { ServiceFormClient } from "@/app/admin/services/new/service-form-client";
 
 export default function NewServicePage() {
   return (

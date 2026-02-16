@@ -36,7 +36,23 @@ export function ChatBox({ applicationId, initialMessages, currentUserId }: any) 
     };
   }, [applicationId, supabase]);
 
-  // Auto scroll ke bawah saat ada pesan baru
+  // 2. LOGIKA OTOMATIS TANDAI PESAN TERBACA
+  useEffect(() => {
+    const markAsRead = async () => {
+      await supabase
+        .from('application_messages')
+        .update({ is_read: true })
+        .eq('application_id', applicationId)
+        .neq('user_id', currentUserId) // Hanya tandai pesan milik lawan bicara
+        .eq('is_read', false);
+    };
+
+    if (messages.length > 0) {
+      markAsRead();
+    }
+  }, [applicationId, messages, currentUserId, supabase]);
+
+  // 3. AUTO SCROLL KE BAWAH SAAT ADA PESAN BARU
   useEffect(() => {
     if (scrollRef.current) {
       scrollRef.current.scrollTop = scrollRef.current.scrollHeight;

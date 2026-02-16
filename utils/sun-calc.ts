@@ -1,3 +1,4 @@
+// utils/sun-calc.ts
 export function getSunTimes(lat: number, lng: number) {
     const date = new Date();
     

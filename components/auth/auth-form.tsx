@@ -3,14 +3,14 @@
 
 import { useState } from "react";
 import { useFormStatus } from "react-dom";
-import { loginAction, loginWithGoogle } from "@/actions/auth/auth-actions";
+import { loginAction } from "@/actions/auth/auth-actions"; // Pastikan path import ini sesuai
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
 import { motion, AnimatePresence } from "framer-motion";
 import { 
-  Mail, Lock, Phone, ArrowRight, Github, 
-  HandMetal, UserCheck, AlertCircle 
+  Mail, Lock, Phone, ArrowRight, 
+  HandMetal, AlertCircle, User // Tambahkan 'User' disini
 } from "lucide-react";
 
 export function AuthForm({ onClose }: { onClose?: () => void }) {
@@ -47,6 +47,36 @@ export function AuthForm({ onClose }: { onClose?: () => void }) {
       </div>
 
       <form action={handleSubmit} className="space-y-4">
+        
+        {/* --- FIELD NAMA LENGKAP (BARU) --- */}
+        {/* Hanya muncul saat mode Register */}
+        <AnimatePresence>
+          {mode === "register" && (
+            <motion.div
+              initial={{ opacity: 0, height: 0 }}
+              animate={{ opacity: 1, height: "auto" }}
+              exit={{ opacity: 0, height: 0 }}
+              className="overflow-hidden"
+            >
+              <div className="space-y-2">
+                <Label htmlFor="fullName">Nama Lengkap</Label>
+                <div className="relative">
+                  <User className="absolute left-3 top-3 h-4 w-4 text-cool-steel-400" />
+                  <Input 
+                    id="fullName" 
+                    name="fullName" 
+                    type="text" 
+                    placeholder="Nama Lengkap Anda" 
+                    className="pl-10" 
+                    required 
+                  />
+                </div>
+              </div>
+            </motion.div>
+          )}
+        </AnimatePresence>
+        {/* ---------------------------------- */}
+
         {/* Email & Password (Selalu ada) */}
         <div className="space-y-2">
           <Label htmlFor="email">Email</Label>
@@ -64,7 +94,7 @@ export function AuthForm({ onClose }: { onClose?: () => void }) {
           </div>
         </div>
 
-        {/* Field Khusus Register */}
+        {/* Field Khusus Register (Sisa field lainnya) */}
         <AnimatePresence>
           {mode === "register" && (
             <motion.div
