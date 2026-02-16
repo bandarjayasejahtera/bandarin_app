@@ -1,13 +1,16 @@
-import { NextResponse } from 'next/server'
-import type { NextRequest } from 'next/server'
+import type { NextRequest } from "next/server";
+import { updateSession } from "@/utils/supabase/middleware";
 
-// PENTING: Nama fungsinya harus 'proxy', bukan 'middleware' lagi
-export function proxy(request: NextRequest) { 
-  // Logika sederhana: Izinkan semua request lewat (pass through)
-  return NextResponse.next()
+/**
+ * Proxy (Next.js 16+): menggantikan middleware.ts untuk refresh session
+ * dan proteksi route (redirect ke /login atau /dashboard).
+ */
+export async function proxy(request: NextRequest) {
+  return await updateSession(request);
 }
 
-// Config matcher untuk menentukan di rute mana proxy ini aktif
 export const config = {
-  matcher: '/about/:path*', 
-}
+  matcher: [
+    "/((?!_next/static|_next/image|favicon.ico|.*\\.(?:svg|png|jpg|jpeg|gif|webp|wav)$).*)",
+  ],
+};

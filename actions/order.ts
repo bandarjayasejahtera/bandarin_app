@@ -51,7 +51,7 @@ export async function createApplication(prevState: any, formData: FormData) {
   }
 
   revalidatePath("/dashboard");
-  redirect("/dashboard/orders");
+  redirect("/dashboard/applications");
 }
 
 // 3. Get Order Details
@@ -115,6 +115,6 @@ export async function sendMessage(prevState: any, formData: FormData) {
 
   if (error) return { message: "Gagal kirim" };
 
-  revalidatePath(`/dashboard/orders/${applicationId}`);
+  revalidatePath(`/dashboard/applications/${applicationId}`);
   return { message: "success" };
 }

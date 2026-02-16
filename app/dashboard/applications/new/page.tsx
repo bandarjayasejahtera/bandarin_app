@@ -1,4 +1,4 @@
-import NewApplicationPage from "@/app/user/dashboard/applications/new/page";
+import NewApplicationPage from "@/app/client/dashboard/applications/new/page";
 
 export default function DashboardNewApplicationPage() {
   return <NewApplicationPage />;

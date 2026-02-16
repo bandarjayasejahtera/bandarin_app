@@ -33,6 +33,6 @@ export async function createApplicationAction(formData: ApplicationInput) {
 
   if (error) return { error: error.message };
 
-  revalidatePath('/user/dashboard');
+  revalidatePath('/dashboard');
   return { success: true, id: data.id };
 }

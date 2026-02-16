@@ -21,7 +21,7 @@ interface NavItem {
 const navItems: NavItem[] = [
   { label: 'Overview', href: '/admin', icon: LayoutDashboard },
   { label: 'Manajemen Layanan', href: '/admin/services', icon: Layers },
-  { label: 'Daftar Pesanan', href: '/admin/orders', icon: FileText },
+  { label: 'Daftar Pesanan', href: '/admin/services/orders', icon: FileText },
   { label: 'Database Klien', href: '/admin/clients', icon: Users },
   { label: 'Pengaturan CRM', href: '/admin/settings', icon: Settings },
 ];

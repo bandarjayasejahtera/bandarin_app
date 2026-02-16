@@ -112,7 +112,7 @@ export function ApplicationFormClient({ services }: { services: any[] }) {
 
   return (
     <div className="space-y-8">
-      {/* Pop-up Sukses - Jalur redirect diperbaiki ke /user/dashboard/applications */}
+      {/* Pop-up Sukses - Redirect ke /dashboard/applications */}
       <Dialog open={isSuccessOpen} onOpenChange={setIsSuccessOpen}>
         <DialogContent className="sm:max-w-md rounded-3xl border-none p-0 overflow-hidden shadow-2xl">
           <div className="bg-primary p-12 flex justify-center">
@@ -133,7 +133,7 @@ export function ApplicationFormClient({ services }: { services: any[] }) {
               <Button 
                 onClick={() => {
                   setIsSuccessOpen(false);
-                  router.push('/user/dashboard/applications'); // FIX: Jalur redirect disesuaikan
+                  router.push('/dashboard/applications'); // FIX: Jalur redirect disesuaikan
                   router.refresh();
                 }}
                 className="w-full h-14 rounded-2xl font-black text-lg shadow-xl shadow-primary/20"

@@ -112,7 +112,7 @@ export default async function AdminServicesPage() {
                             </Link>
                         </DropdownMenuItem>
                         <DropdownMenuItem asChild>
-                            <Link href={`/admin/services/edit/${service.id}`} className="flex items-center gap-3 py-2.5 px-3 cursor-pointer rounded-xl font-bold text-sm">
+                            <Link href={`/admin/services/${service.id}/fields`} className="flex items-center gap-3 py-2.5 px-3 cursor-pointer rounded-xl font-bold text-sm">
                                 <ExternalLink className="h-4 w-4 text-slate-500" /> Edit Metadata
                             </Link>
                         </DropdownMenuItem>

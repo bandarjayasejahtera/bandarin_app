@@ -13,8 +13,11 @@ export default async function AdminOrderDetailPage({ params }: PageProps) {
   const { id } = await params;
   const supabase = await createClient();
 
+  const { data: { user } } = await supabase.auth.getUser();
+  const currentUserId = user?.id ?? "";
+
   // 1. AMBIL DETAIL ORDER
-  // Menggunakan alias FK eksplisit (!applications_userid_fkey) untuk menghindari error ambiguitas
+  // Menggunakan alias FK eksplisit untuk menghindari ambiguitas
   const { data: order, error: orderError } = await supabase
     .from("applications")
     .select(`
@@ -35,8 +38,6 @@ export default async function AdminOrderDetailPage({ params }: PageProps) {
   }
 
   // 2. AMBIL RIWAYAT CHAT
-  // Menggunakan alias FK eksplisit (!application_messages_sender_id_fkey)
-  // karena nama constraint Anda 'sender_id' tapi kolomnya 'user_id'
   const { data: messages, error: msgError } = await supabase
     .from("application_messages")
     .select(`
@@ -60,11 +61,14 @@ export default async function AdminOrderDetailPage({ params }: PageProps) {
   }
 
   return (
-    <div className="max-w-7xl mx-auto pb-20 animate-in fade-in duration-500">
-      <OrderDetailClient 
-        initialOrder={order} 
-        initialMessages={messages || []} 
-      />
+    <div className="min-h-screen bg-slate-50/50 dark:bg-slate-950">
+      <div className="max-w-[1600px] mx-auto p-4 md:p-6 lg:p-8 animate-in fade-in duration-500">
+        <OrderDetailClient 
+          initialOrder={order} 
+          initialMessages={messages || []}
+          initialCurrentUserId={currentUserId}
+        />
+      </div>
     </div>
   );
 }

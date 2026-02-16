@@ -1,4 +1,4 @@
-import UserDashboardLayout from "@/app/user/layout";
+import UserDashboardLayout from "@/app/client/layout";
 
 export default UserDashboardLayout;
 

@@ -1,4 +1,4 @@
-import UserApplicationDetailPage from "@/app/user/dashboard/applications/[id]/page";
+import UserApplicationDetailPage from "@/app/client/dashboard/applications/[id]/page";
 
 export default function DashboardApplicationDetailPage({
   params,
