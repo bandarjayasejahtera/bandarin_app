@@ -5,8 +5,8 @@ import React, { useEffect, useState, useRef } from "react";
 import { createClient } from "@/utils/supabase/client";
 import { 
   Send, Loader2, Reply, Edit2, Trash2, 
-  Copy, MoreVertical, Check, CheckCheck,
-  Clock, Paperclip, X, ImageIcon, FileText, Smile
+  Copy, MoreVertical, Check,
+  Paperclip, X, ImageIcon, FileText, Smile
 } from "lucide-react";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
@@ -499,20 +499,6 @@ export function ChatBoxCore({
     }
   };
 
-  const getStatusIcon = (msg: ChatMessage) => {
-    const isMe = msg.user_id === currentUserId;
-    if (!isMe) return null;
-
-    if (!msg.is_delivered) {
-      return <Clock className="h-3 w-3 text-slate-400" />;
-    } else if (msg.is_delivered && !msg.is_read) {
-      return <CheckCheck className="h-3 w-3 text-slate-400" />;
-    } else if (msg.is_read) {
-      return <CheckCheck className="h-3 w-3 text-blue-500" />;
-    }
-    return <Check className="h-3 w-3 text-slate-400" />;
-  };
-
   const getDisplayName = () => {
     // Use custom title if provided
     if (title) return title;
@@ -604,8 +590,8 @@ export function ChatBoxCore({
               (new Date().getTime() - new Date(msg.created_at).getTime()) < 15 * 60 * 1000;
 
             return (
-              <div key={msg.id} className={`flex ${isMe ? 'justify-end' : 'justify-start'} group animate-in slide-in-from-bottom-2`}>
-                <div className={`max-w-[80%] ${isMe ? 'order-2' : 'order-1'}`}>
+              <div key={msg.id} className={`flex min-w-0 ${isMe ? 'justify-end' : 'justify-start'} group animate-in slide-in-from-bottom-2`}>
+                <div className={`max-w-[80%] min-w-0 ${isMe ? 'order-2' : 'order-1'}`}>
                   
                   {/* Reply Preview */}
                   {msg.reply_to && (
@@ -622,19 +608,19 @@ export function ChatBoxCore({
                   )}
 
                   {/* Message Bubble */}
-                  <div className={`relative p-3 rounded-2xl shadow-sm ${
+                  <div className={`relative p-3 rounded-2xl shadow-sm min-w-0 overflow-hidden ${
                     isMe 
                       ? 'bg-primary text-white rounded-tr-none' 
                       : 'bg-white dark:bg-slate-800 text-slate-800 dark:text-white rounded-tl-none border border-slate-200 dark:border-slate-700'
                   }`}>
 
                     {msg.attachment_url && (
-                      <div className="mb-2">
+                      <div className="mb-2 max-w-full overflow-hidden rounded-lg">
                         {msg.attachment_type === 'image' && (
                           <img 
                             src={msg.attachment_url} 
                             alt="Attachment" 
-                            className="rounded-lg max-w-xs cursor-pointer hover:opacity-90 transition-opacity"
+                            className="max-w-full max-h-48 w-auto h-auto object-contain rounded-lg cursor-pointer hover:opacity-90 transition-opacity"
                             onClick={() => window.open(msg.attachment_url, '_blank')}
                           />
                         )}
@@ -643,12 +629,12 @@ export function ChatBoxCore({
                             href={msg.attachment_url} 
                             target="_blank" 
                             rel="noopener noreferrer"
-                            className={`flex items-center gap-2 p-2 rounded-lg transition-colors ${
+                            className={`flex items-center gap-2 p-2 rounded-lg transition-colors min-w-0 max-w-full overflow-hidden ${
                               isMe ? 'bg-white/10 hover:bg-white/20' : 'bg-slate-100 hover:bg-slate-200'
                             }`}
                           >
-                            <FileText className="h-4 w-4" />
-                            <span className="text-xs font-medium">Dokumen terlampir</span>
+                            <FileText className="h-4 w-4 shrink-0" />
+                            <span className="text-xs font-medium truncate">Dokumen terlampir</span>
                           </a>
                         )}
                       </div>
@@ -688,7 +674,6 @@ export function ChatBoxCore({
                     }`}>
                       {msg.is_edited && <span className="italic">edited</span>}
                       <span>{format(new Date(msg.created_at), "HH:mm")}</span>
-                      {getStatusIcon(msg)}
                     </div>
                   </div>
 
