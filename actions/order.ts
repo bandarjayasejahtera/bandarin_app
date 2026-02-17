@@ -1,3 +1,4 @@
+//actions/order.ts
 'use server'
 
 import { createClient } from "@/utils/supabase/server";
@@ -20,11 +21,15 @@ export async function getServices() {
   return data;
 }
 
-// 2. Create New Application
+// 2. Create New Application (DENGAN LOGIKA NOTIFIKASI)
 export async function createApplication(prevState: any, formData: FormData) {
   const supabase = await createClient();
   const { data: { user } } = await supabase.auth.getUser();
-  if (!user) return { message: "Unauthorized" };
+  
+  if (!user) {
+    console.log("❌ User tidak terautentikasi");
+    return { message: "Unauthorized" };
+  }
 
   const service_id = formData.get("service_id") as string;
   const company_name = formData.get("company_name") as string;
@@ -34,7 +39,10 @@ export async function createApplication(prevState: any, formData: FormData) {
   if (!service_id) return { message: "Harap pilih jenis layanan." };
   if (!company_name) return { message: "Nama perusahaan wajib diisi." };
 
-  const { error } = await supabase.from("applications").insert({
+  console.log("🚀 Memulai proses insert aplikasi...");
+
+  // A. Insert Aplikasi
+  const { data: newApp, error: appError } = await supabase.from("applications").insert({
     user_id: user.id,
     service_id: service_id,
     company_name: company_name,
@@ -43,14 +51,47 @@ export async function createApplication(prevState: any, formData: FormData) {
     status: 'draft',
     current_step: 'Verifikasi Berkas',
     payment_status: 'pending'
-  });
+  }).select('id').single();
 
-  if (error) {
-    console.error("Create App Error:", error);
+  if (appError) {
+    console.error("❌ Gagal Insert Aplikasi:", appError.message);
     return { message: "Gagal membuat pengajuan. Coba lagi nanti." };
   }
 
-  revalidatePath("/dashboard");
+  console.log("✅ Aplikasi berhasil dibuat. ID:", newApp.id);
+
+  // B. CARI ADMIN UNTUK DIKIRIMI NOTIFIKASI
+  // (Memerlukan Policy RLS 'SELECT' pada table profiles yang sudah kita buat di Langkah 1)
+  const { data: admin, error: adminError } = await supabase
+    .from('profiles')
+    .select('id')
+    .eq('role', 'admin')
+    .limit(1)
+    .single();
+
+  if (adminError || !admin) {
+    console.error("⚠️ Gagal mencari Admin. Pastikan ada user role 'admin' dan RLS profiles sudah benar.");
+  } else {
+    console.log("🎯 Admin ditemukan (ID: " + admin.id + "). Mengirim notifikasi...");
+    
+    // C. INSERT KE TABEL NOTIFICATIONS
+    const { error: notifError } = await supabase.from('notifications').insert({
+      user_id: admin.id, // ID Admin
+      title: "Pesanan Baru Masuk!",
+      message: `Klien ${company_name} mengajukan layanan baru.`,
+      link: `/admin/services/orders/${newApp.id}`, // Link untuk Admin
+      is_read: false
+    });
+
+    if (notifError) {
+      console.error("❌ Gagal Insert Notifikasi:", notifError.message);
+    } else {
+      console.log("✅ Sukses! Notifikasi masuk ke database.");
+    }
+  }
+
+  revalidatePath("/admin");
+  revalidatePath("/client/applications");
   redirect("/client/applications");
 }
 
@@ -79,14 +120,12 @@ export async function getOrderDetails(orderId: string) {
 
   if (error) return null;
 
-  // Sort messages (Oldest -> Newest)
   if (data.application_messages) {
     data.application_messages.sort((a: any, b: any) => 
       new Date(a.created_at).getTime() - new Date(b.created_at).getTime()
     );
   }
   
-  // Sort logs (Newest -> Oldest)
   if (data.application_logs) {
     data.application_logs.sort((a: any, b: any) => 
       new Date(b.timestamp).getTime() - new Date(a.timestamp).getTime()
@@ -96,7 +135,7 @@ export async function getOrderDetails(orderId: string) {
   return data;
 }
 
-// 4. Send Message
+// 4. Send Message (DENGAN LOGIKA NOTIFIKASI)
 export async function sendMessage(prevState: any, formData: FormData) {
   const supabase = await createClient();
   const { data: { user } } = await supabase.auth.getUser();
@@ -107,14 +146,54 @@ export async function sendMessage(prevState: any, formData: FormData) {
 
   if (!message || message.trim() === "") return { message: "Pesan kosong" };
 
-  const { error } = await supabase.from("application_messages").insert({
+  // A. Insert Pesan
+  const { error: msgError } = await supabase.from("application_messages").insert({
     application_id: applicationId,
     user_id: user.id,
     message: message,
   });
 
-  if (error) return { message: "Gagal kirim" };
+  if (msgError) return { message: "Gagal kirim" };
 
-  revalidatePath(`/dashboard/applications/${applicationId}`);
+  // B. LOGIKA NOTIFIKASI CHAT
+  const { data: app } = await supabase
+    .from('applications')
+    .select('user_id, company_name')
+    .eq('id', applicationId)
+    .single();
+
+  if (app) {
+    let recipientId = "";
+    let title = "Pesan Baru";
+    let targetLink = "";
+
+    if (user.id === app.user_id) {
+       // PENGIRIM = KLIEN -> PENERIMA = ADMIN
+       const { data: admin } = await supabase.from('profiles').select('id').eq('role', 'admin').limit(1).single();
+       if (admin) {
+         recipientId = admin.id;
+         title = `Chat: ${app.company_name}`;
+         targetLink = `/admin/services/orders/${applicationId}`;
+       }
+    } else {
+       // PENGIRIM = ADMIN -> PENERIMA = KLIEN
+       recipientId = app.user_id;
+       title = "Pesan Admin Bandarin";
+       targetLink = `/client/applications/${applicationId}`;
+    }
+
+    if (recipientId) {
+      await supabase.from('notifications').insert({
+        user_id: recipientId,
+        title: title,
+        message: message.substring(0, 50) + "...",
+        link: targetLink,
+        is_read: false
+      });
+    }
+  }
+
+  revalidatePath(`/admin/services/orders/${applicationId}`); // Refresh Admin
+  revalidatePath(`/client/applications/${applicationId}`); // Refresh Client
   return { message: "success" };
 }

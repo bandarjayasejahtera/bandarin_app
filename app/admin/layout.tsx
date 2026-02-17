@@ -1,3 +1,4 @@
+//app/admin/layout.tsx
 import React from 'react';
 import { createClient } from "@/utils/supabase/server";
 import { redirect } from "next/navigation";
@@ -10,7 +11,6 @@ import {
   Settings, 
   LogOut, 
   ShieldCheck, 
-  BellRing,
   Menu
 } from "lucide-react";
 import { Button } from "@/components/ui/button";
@@ -23,6 +23,9 @@ import {
   SheetTrigger,
 } from "@/components/ui/sheet";
 import { VisuallyHidden } from "@radix-ui/react-visually-hidden";
+
+// IMPORT KOMPONEN NOTIFIKASI REAL-TIME
+import { NotificationBell } from "@/components/dashboard/notification-bell";
 
 export default async function AdminLayout({ children }: { children: React.ReactNode }) {
   const supabase = await createClient();
@@ -50,7 +53,6 @@ export default async function AdminLayout({ children }: { children: React.ReactN
     { label: 'Pengaturan CRM', href: '/admin/settings', icon: Settings },
   ];
 
-  // Komponen Navigasi untuk Reusable (Desktop & Mobile)
   const SidebarContent = () => (
     <div className="flex flex-col h-full">
       <div className="p-6 h-16 flex items-center gap-3 border-b border-zinc-100 dark:border-zinc-800/50">
@@ -104,21 +106,14 @@ export default async function AdminLayout({ children }: { children: React.ReactN
 
   return (
     <div className="flex h-screen bg-zinc-50/50 dark:bg-zinc-950 font-sans overflow-hidden">
-      
-      {/* SIDEBAR DESKTOP */}
       <aside className="w-64 hidden lg:flex flex-col bg-white dark:bg-zinc-900 border-r border-zinc-200 dark:border-zinc-800 h-full z-50">
         <SidebarContent />
       </aside>
 
-      {/* WRAPPER KONTEN UTAMA */}
       <div className="flex-1 flex flex-col min-w-0 h-full relative">
-        
-        {/* HEADER - Frozen & Simetris */}
         <header className="h-16 w-full sticky top-0 z-40 bg-white/80 dark:bg-zinc-950/80 backdrop-blur-md border-b border-zinc-200 dark:border-zinc-800 flex-shrink-0">
           <div className="max-w-7xl mx-auto h-full px-4 lg:px-8 flex items-center justify-between">
-            
             <div className="flex items-center gap-4">
-              {/* TRIGGER SIDEBAR MOBILE */}
               <div className="lg:hidden">
                 <Sheet>
                   <SheetTrigger asChild>
@@ -127,42 +122,30 @@ export default async function AdminLayout({ children }: { children: React.ReactN
                     </Button>
                   </SheetTrigger>
                   <SheetContent side="left" className="p-0 w-72 border-r-0">
-                    <VisuallyHidden>
-                      <SheetTitle>Menu navigasi</SheetTitle>
-                    </VisuallyHidden>
+                    <VisuallyHidden><SheetTitle>Menu navigasi</SheetTitle></VisuallyHidden>
                     <SidebarContent />
                   </SheetContent>
                 </Sheet>
               </div>
-
-              {/* Status Session (Kiri) */}
               <div className="hidden sm:flex items-center gap-2 px-3 py-1 bg-emerald-50 dark:bg-emerald-500/10 border border-emerald-100 dark:border-emerald-500/20 rounded-full">
                 <div className="h-1.5 w-1.5 rounded-full bg-emerald-500 animate-pulse" />
-                <span className="text-[10px] font-bold text-emerald-700 dark:text-emerald-400 uppercase tracking-widest">
-                  Live System
-                </span>
+                <span className="text-[10px] font-bold text-emerald-700 dark:text-emerald-400 uppercase tracking-widest">Live System</span>
               </div>
             </div>
 
-            {/* Tools (Kanan) */}
             <div className="flex items-center gap-2 sm:gap-3">
               <ThemeToggle />
               <div className="h-4 w-px bg-zinc-200 dark:bg-zinc-800 mx-1" />
-              <Button variant="outline" size="icon" className="h-9 w-9 rounded-full relative border-zinc-200 dark:border-zinc-800 bg-transparent hover:bg-zinc-50">
-                <BellRing className="h-4 w-4 text-zinc-600 dark:text-zinc-400" />
-                <span className="absolute top-2.5 right-2.5 h-1.5 w-1.5 bg-red-500 rounded-full ring-2 ring-white dark:ring-zinc-950" />
-              </Button>
+              
+              {/* LONCENG NOTIFIKASI REAL-TIME */}
+              <NotificationBell userId={user.id} />
             </div>
           </div>
         </header>
 
-        {/* AREA SCROLL KONTEN */}
-        <main className="flex-1 overflow-y-auto scrollbar-thin scrollbar-thumb-zinc-200 dark:scrollbar-thumb-zinc-800">
-          <div className="max-w-7xl mx-auto p-4 lg:p-8 w-full">
-            {children}
-          </div>
+        <main className="flex-1 overflow-y-auto">
+          <div className="max-w-7xl mx-auto p-4 lg:p-8 w-full">{children}</div>
         </main>
-
       </div>
     </div>
   );

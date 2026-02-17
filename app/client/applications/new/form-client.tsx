@@ -65,9 +65,19 @@ export function ApplicationFormClient({ services }: { services: any[] }) {
     if (!user) return alert("Silakan login kembali");
 
     try {
+      // 1. AMBIL PROFIL KLIEN (Untuk mendapatkan Nama Lengkap)
+      const { data: clientProfile } = await supabase
+        .from('profiles')
+        .select('full_name')
+        .eq('id', user.id)
+        .single();
+      
+      // Gunakan nama dari profil, jika kosong gunakan email, jika tidak ada gunakan "Klien"
+      const clientName = clientProfile?.full_name || user.email || "Klien";
+
       const finalFormData = { ...formData };
 
-      // 1. LOGIKA UPLOAD FILE KE STORAGE
+      // 2. LOGIKA UPLOAD FILE KE STORAGE
       for (const field of fields) {
         if (field.field_type === 'file') {
           const fileList = formData[field.field_name];
@@ -88,31 +98,67 @@ export function ApplicationFormClient({ services }: { services: any[] }) {
         }
       }
 
-      // 2. SIMPAN DATA KE TABLE APPLICATIONS
-      // Pastikan kolom form_data di database bertipe JSONB
-      const { error: insertError } = await supabase.from('applications').insert({
-        user_id: user.id,
-        service_id: selectedServiceId,
-        status: 'pending',
-        current_step: 'Application Received', 
-        form_data: finalFormData, // Objek JSON yang berisi data form dan path file
-        payment_status: 'pending', 
-      });
+      // 3. SIMPAN DATA KE TABLE APPLICATIONS
+      // Kita menggunakan .select().single() untuk mendapatkan ID aplikasi yang baru dibuat
+      const { data: newApp, error: insertError } = await supabase
+        .from('applications')
+        .insert({
+          user_id: user.id,
+          service_id: selectedServiceId,
+          status: 'pending',
+          current_step: 'Application Received', 
+          form_data: finalFormData, // Objek JSON berisi data form & path file
+          payment_status: 'pending', 
+        })
+        .select('id')
+        .single();
 
       if (insertError) throw insertError;
 
-      // 3. Tampilkan Pop-up Sukses
+      // ============================================================
+      // 4. LOGIKA NOTIFIKASI OTOMATIS KE ADMIN
+      // ============================================================
+      
+      // A. Cari User dengan Role Admin
+      const { data: adminProfile } = await supabase
+        .from('profiles')
+        .select('id')
+        .eq('role', 'admin')
+        .limit(1)
+        .single();
+
+      // B. Jika Admin ditemukan, kirim notifikasi
+      if (adminProfile) {
+        // Cari nama layanan untuk pesan yang lebih jelas
+        const serviceName = services.find(s => s.id === selectedServiceId)?.name || "Layanan";
+
+        const { error: notifError } = await supabase
+          .from('notifications')
+          .insert({
+            user_id: adminProfile.id, // ID Admin sebagai penerima
+            title: "Pesanan Baru Masuk!",
+            // Pesan menyertakan Nama Layanan dan Nama Klien
+            message: `Ada pengajuan baru untuk ${serviceName} dari ${clientName}. Segera cek dokumen.`,
+            link: `/admin/services/orders/${newApp.id}`, // Link langsung ke detail pesanan
+            is_read: false
+          });
+          
+        if (notifError) console.error("Gagal kirim notifikasi:", notifError);
+      }
+      // ============================================================
+
+      // 5. Tampilkan Pop-up Sukses
       setIsSuccessOpen(true);
 
     } catch (error: any) {
       console.error("Submission Error:", error);
-      alert(error.message || "Terjadi kesalahan saat mengirim pengajuan. Pastikan tabel database sudah diperbarui.");
+      alert(error.message || "Terjadi kesalahan saat mengirim pengajuan. Pastikan koneksi internet lancar.");
     }
   };
 
   return (
     <div className="space-y-8">
-      {/* Pop-up Sukses - Redirect ke /dashboard/applications */}
+      {/* Pop-up Sukses - Redirect ke /client/applications */}
       <Dialog open={isSuccessOpen} onOpenChange={setIsSuccessOpen}>
         <DialogContent className="sm:max-w-md rounded-3xl border-none p-0 overflow-hidden shadow-2xl">
           <div className="bg-primary p-12 flex justify-center">
@@ -126,14 +172,14 @@ export function ApplicationFormClient({ services }: { services: any[] }) {
                 Pengajuan Berhasil!
               </DialogTitle>
               <DialogDescription className="text-center font-medium text-slate-500">
-                Data Anda telah kami terima. Tim ahli Bandarin akan segera meninjau dokumen dan memberikan penawaran harga terbaik.
+                Data Anda telah kami terima. Notifikasi telah dikirim ke Admin untuk segera diproses.
               </DialogDescription>
             </DialogHeader>
             <DialogFooter className="sm:justify-center">
               <Button 
                 onClick={() => {
                   setIsSuccessOpen(false);
-                  router.push('/client/applications'); // FIX: Jalur redirect disesuaikan
+                  router.push('/client/applications'); 
                   router.refresh();
                 }}
                 className="w-full h-14 rounded-2xl font-black text-lg shadow-xl shadow-primary/20"
@@ -145,7 +191,7 @@ export function ApplicationFormClient({ services }: { services: any[] }) {
         </DialogContent>
       </Dialog>
 
-      {/* Konten Form Tetap Sama namun dengan Visual Lebih Tegas */}
+      {/* Konten Form - Pilihan Layanan */}
       <Card className="border-none shadow-xl rounded-[2rem] bg-white dark:bg-slate-900">
         <CardContent className="p-8">
           <div className="space-y-4">
