@@ -1,5 +1,6 @@
 import React from 'react';
 import { createClient } from "@/utils/supabase/server";
+import { redirect } from "next/navigation";
 import Link from "next/link";
 import { 
   LayoutDashboard, 
@@ -7,94 +8,39 @@ import {
   FileText, 
   Users, 
   Settings, 
-  LogOut,
-  ShieldCheck,
+  LogOut, 
+  ShieldCheck, 
   BellRing,
-  AlertTriangle
+  Menu
 } from "lucide-react";
 import { Button } from "@/components/ui/button";
 import { ThemeToggle } from "@/components/ui/theme-toggle";
+import { Avatar, AvatarFallback } from "@/components/ui/avatar";
+import {
+  Sheet,
+  SheetContent,
+  SheetTitle,
+  SheetTrigger,
+} from "@/components/ui/sheet";
+import { VisuallyHidden } from "@radix-ui/react-visually-hidden";
 
 export default async function AdminLayout({ children }: { children: React.ReactNode }) {
   const supabase = await createClient();
   
-  // 1. Cek User Auth
+  // 1. Validasi Sesi Auth
   const { data: { user } } = await supabase.auth.getUser();
+  if (!user) redirect("/login");
 
-  if (!user) {
-    return (
-      <div className="flex flex-col items-center justify-center h-screen gap-4">
-        <h1 className="text-2xl font-bold text-red-600">Anda belum login (No Session)</h1>
-        <Link href="/login"><Button>Login Sekarang</Button></Link>
-      </div>
-    );
-  }
-
-  // 2. Proteksi Role Admin (DEBUG MODE: Tanpa Redirect)
-  const { data: profile, error: profileError } = await supabase
+  // 2. Validasi Role Admin
+  const { data: profile } = await supabase
     .from('profiles')
-    .select('*') // Ambil semua kolom untuk cek
+    .select('role, full_name')
     .eq('id', user.id)
     .single();
 
-  // JIKA BUKAN ADMIN: TAMPILKAN ERROR DI LAYAR (JANGAN REDIRECT DULU)
   if (!profile || profile.role !== 'admin') {
-    return (
-      <div className="min-h-screen bg-slate-50 flex flex-col items-center justify-center p-10 space-y-6">
-        <div className="bg-white p-8 rounded-2xl shadow-xl border border-red-200 max-w-2xl w-full">
-          <div className="flex items-center gap-3 mb-6">
-            <div className="p-3 bg-red-100 rounded-full text-red-600">
-              <AlertTriangle className="h-8 w-8" />
-            </div>
-            <h1 className="text-2xl font-black text-slate-800">Akses Ditolak (Debug Mode)</h1>
-          </div>
-          
-          <div className="space-y-4 text-sm font-mono bg-slate-900 text-green-400 p-6 rounded-xl overflow-x-auto">
-            <p><strong>User Email:</strong> {user.email}</p>
-            <p><strong>User ID:</strong> {user.id}</p>
-            <p className={profile ? "text-blue-400" : "text-red-400"}>
-              <strong>Profile Found:</strong> {profile ? "YES" : "NO (Cek RLS Policy)"}
-            </p>
-            <p><strong>Profile Error:</strong> {profileError ? JSON.stringify(profileError) : "None"}</p>
-            <p className={profile?.role === 'admin' ? "text-green-400" : "text-red-500 font-bold"}>
-              <strong>Current Role:</strong> '{profile?.role}' (Harus 'admin')
-            </p>
-          </div>
-
-          <div className="mt-8 space-y-4 border-t pt-6">
-            <h3 className="font-bold text-slate-700">Solusi Perbaikan:</h3>
-            <ul className="list-disc pl-5 space-y-2 text-slate-600">
-              <li>
-                <strong>Jika Role masih 'user':</strong> Jalankan SQL update di Supabase.
-              </li>
-              <li>
-                <strong>Jika Profile Found = NO:</strong> Masalah RLS Policy. Jalankan SQL Policy di bawah.
-              </li>
-            </ul>
-            <div className="flex gap-4 mt-4">
-               <Link href="/dashboard">
-                <Button variant="outline">Kembali ke Dashboard User</Button>
-               </Link>
-               <form action={async () => {
-                  "use server";
-                  const supabase = await createClient();
-                  await supabase.auth.signOut();
-               }}>
-                  <Button variant="destructive">Logout</Button>
-               </form>
-            </div>
-          </div>
-        </div>
-      </div>
-    );
+    redirect("/"); 
   }
-
-  // JIKA ADMIN: TAMPILKAN LAYOUT NORMAL
-  const signOut = async () => {
-    "use server";
-    const supabase = await createClient();
-    await supabase.auth.signOut();
-  };
 
   const navItems = [
     { label: 'Overview', href: '/admin', icon: LayoutDashboard },
@@ -104,56 +50,120 @@ export default async function AdminLayout({ children }: { children: React.ReactN
     { label: 'Pengaturan CRM', href: '/admin/settings', icon: Settings },
   ];
 
+  // Komponen Navigasi untuk Reusable (Desktop & Mobile)
+  const SidebarContent = () => (
+    <div className="flex flex-col h-full">
+      <div className="p-6 h-16 flex items-center gap-3 border-b border-zinc-100 dark:border-zinc-800/50">
+        <div className="h-8 w-8 bg-blue-600 rounded-lg flex items-center justify-center shadow-lg shadow-blue-500/20 flex-shrink-0">
+          <ShieldCheck className="h-4 w-4 text-white" />
+        </div>
+        <span className="font-black text-lg tracking-tighter text-zinc-900 dark:text-white">
+          BANDARIN<span className="text-blue-600">.</span>
+        </span>
+      </div>
+
+      <nav className="flex-1 p-4 space-y-1 overflow-y-auto">
+        <p className="px-4 text-[10px] font-bold text-zinc-400 uppercase tracking-widest mb-4">Main Menu</p>
+        {navItems.map((item) => (
+          <Link 
+            key={item.href} 
+            href={item.href}
+            className="flex items-center gap-3 px-4 py-2.5 rounded-xl text-sm font-semibold text-zinc-500 dark:text-zinc-400 hover:bg-zinc-50 dark:hover:bg-zinc-800 hover:text-blue-600 dark:hover:text-blue-400 transition-all group"
+          >
+            <item.icon className="h-4 w-4 group-hover:scale-110 transition-transform" />
+            {item.label}
+          </Link>
+        ))}
+      </nav>
+
+      <div className="p-4 border-t border-zinc-100 dark:border-zinc-800 bg-zinc-50/30 dark:bg-zinc-900/30">
+        <div className="flex items-center gap-3 mb-4 px-2">
+          <Avatar className="h-8 w-8 border-2 border-white dark:border-zinc-800 shadow-sm">
+            <AvatarFallback className="bg-blue-100 text-blue-700 text-[10px] font-bold uppercase">
+              {profile.full_name?.charAt(0) || "A"}
+            </AvatarFallback>
+          </Avatar>
+          <div className="flex-1 min-w-0">
+            <p className="text-[11px] font-bold text-zinc-900 dark:text-zinc-100 truncate">{profile.full_name}</p>
+            <p className="text-[9px] text-zinc-500 truncate">{user.email}</p>
+          </div>
+        </div>
+        <form action={async () => { 
+          "use server"; 
+          const sb = await createClient();
+          await sb.auth.signOut();
+          redirect("/login"); 
+        }}>
+          <Button variant="ghost" size="sm" className="w-full justify-start text-red-500 hover:bg-red-50 dark:hover:bg-red-950/50 hover:text-red-600 rounded-lg h-9 font-bold text-xs">
+            <LogOut className="h-3.5 w-3.5 mr-2" /> Keluar
+          </Button>
+        </form>
+      </div>
+    </div>
+  );
+
   return (
-    <div className="min-h-screen bg-background text-foreground flex transition-colors duration-500">
-      <aside className="w-72 bg-slate-950 dark:bg-black text-slate-300 flex flex-col sticky top-0 h-screen shadow-2xl border-r border-slate-800/50">
-        <div className="p-8 border-b border-slate-800/50 flex items-center gap-3">
-          <div className="p-2 bg-blue-600 rounded-xl shadow-lg shadow-blue-500/20">
-            <ShieldCheck className="h-6 w-6 text-white" />
-          </div>
-          <span className="font-black text-xl tracking-tighter text-white">BANDARIN<span className="text-blue-500">.</span></span>
-        </div>
-
-        <nav className="flex-1 p-6 space-y-2">
-          {navItems.map((item) => (
-            <Link key={item.href} href={item.href} className="flex items-center gap-3 px-4 py-3.5 rounded-2xl hover:bg-slate-800 dark:hover:bg-slate-900 hover:text-white transition-all font-bold text-sm group">
-              <item.icon className="h-5 w-5 text-slate-500 group-hover:text-blue-400 transition-colors" />
-              {item.label}
-            </Link>
-          ))}
-        </nav>
-
-        <div className="p-6 border-t border-slate-800/50 space-y-4">
-          <div className="bg-slate-800/50 p-4 rounded-2xl border border-slate-700/50">
-            <p className="text-[10px] font-black uppercase tracking-widest text-slate-500 mb-2">Logged in as</p>
-            <p className="text-xs font-bold text-white truncate">{user.email}</p>
-          </div>
-          <form action={signOut}>
-            <Button variant="ghost" className="w-full justify-start text-red-400 hover:text-red-300 hover:bg-red-500/10 font-bold rounded-xl">
-              <LogOut className="h-4 w-4 mr-3" /> Keluar
-            </Button>
-          </form>
-        </div>
+    <div className="flex h-screen bg-zinc-50/50 dark:bg-zinc-950 font-sans overflow-hidden">
+      
+      {/* SIDEBAR DESKTOP */}
+      <aside className="w-64 hidden lg:flex flex-col bg-white dark:bg-zinc-900 border-r border-zinc-200 dark:border-zinc-800 h-full z-50">
+        <SidebarContent />
       </aside>
 
-      <main className="flex-1 flex flex-col min-w-0 overflow-hidden bg-slate-50/50 dark:bg-slate-950">
-        <header className="h-20 bg-white/80 dark:bg-slate-900/80 backdrop-blur-md border-b border-slate-200 dark:border-slate-800 px-8 flex items-center justify-between sticky top-0 z-40 transition-colors duration-500">
-          <div className="flex items-center gap-2">
-            <div className="h-2 w-2 rounded-full bg-green-500 animate-pulse" />
-            <span className="text-[10px] font-black uppercase tracking-widest text-slate-400">System Live Pulse</span>
-          </div>
-          <div className="flex items-center gap-4">
-            <ThemeToggle />
-            <div className="h-6 w-px bg-slate-200 dark:bg-slate-800 mx-2" />
-            <Button variant="outline" size="icon" className="rounded-full relative border-2 border-slate-100 dark:border-slate-800 bg-transparent">
-              <BellRing className="h-4 w-4 text-slate-600 dark:text-slate-400" />
-            </Button>
+      {/* WRAPPER KONTEN UTAMA */}
+      <div className="flex-1 flex flex-col min-w-0 h-full relative">
+        
+        {/* HEADER - Frozen & Simetris */}
+        <header className="h-16 w-full sticky top-0 z-40 bg-white/80 dark:bg-zinc-950/80 backdrop-blur-md border-b border-zinc-200 dark:border-zinc-800 flex-shrink-0">
+          <div className="max-w-7xl mx-auto h-full px-4 lg:px-8 flex items-center justify-between">
+            
+            <div className="flex items-center gap-4">
+              {/* TRIGGER SIDEBAR MOBILE */}
+              <div className="lg:hidden">
+                <Sheet>
+                  <SheetTrigger asChild>
+                    <Button variant="ghost" size="icon" className="h-9 w-9">
+                      <Menu className="h-5 w-5 text-zinc-600 dark:text-zinc-400" />
+                    </Button>
+                  </SheetTrigger>
+                  <SheetContent side="left" className="p-0 w-72 border-r-0">
+                    <VisuallyHidden>
+                      <SheetTitle>Menu navigasi</SheetTitle>
+                    </VisuallyHidden>
+                    <SidebarContent />
+                  </SheetContent>
+                </Sheet>
+              </div>
+
+              {/* Status Session (Kiri) */}
+              <div className="hidden sm:flex items-center gap-2 px-3 py-1 bg-emerald-50 dark:bg-emerald-500/10 border border-emerald-100 dark:border-emerald-500/20 rounded-full">
+                <div className="h-1.5 w-1.5 rounded-full bg-emerald-500 animate-pulse" />
+                <span className="text-[10px] font-bold text-emerald-700 dark:text-emerald-400 uppercase tracking-widest">
+                  Live System
+                </span>
+              </div>
+            </div>
+
+            {/* Tools (Kanan) */}
+            <div className="flex items-center gap-2 sm:gap-3">
+              <ThemeToggle />
+              <div className="h-4 w-px bg-zinc-200 dark:bg-zinc-800 mx-1" />
+              <Button variant="outline" size="icon" className="h-9 w-9 rounded-full relative border-zinc-200 dark:border-zinc-800 bg-transparent hover:bg-zinc-50">
+                <BellRing className="h-4 w-4 text-zinc-600 dark:text-zinc-400" />
+                <span className="absolute top-2.5 right-2.5 h-1.5 w-1.5 bg-red-500 rounded-full ring-2 ring-white dark:ring-zinc-950" />
+              </Button>
+            </div>
           </div>
         </header>
-        <div className="p-10 overflow-y-auto">
-          {children}
-        </div>
-      </main>
+
+        {/* AREA SCROLL KONTEN */}
+        <main className="flex-1 overflow-y-auto scrollbar-thin scrollbar-thumb-zinc-200 dark:scrollbar-thumb-zinc-800">
+          <div className="max-w-7xl mx-auto p-4 lg:p-8 w-full">
+            {children}
+          </div>
+        </main>
+
+      </div>
     </div>
   );
 }

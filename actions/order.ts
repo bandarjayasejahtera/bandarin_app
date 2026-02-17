@@ -51,7 +51,7 @@ export async function createApplication(prevState: any, formData: FormData) {
   }
 
   revalidatePath("/dashboard");
-  redirect("/dashboard/applications");
+  redirect("/client/applications");
 }
 
 // 3. Get Order Details

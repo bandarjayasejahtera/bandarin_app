@@ -133,7 +133,7 @@ export function ApplicationFormClient({ services }: { services: any[] }) {
               <Button 
                 onClick={() => {
                   setIsSuccessOpen(false);
-                  router.push('/dashboard/applications'); // FIX: Jalur redirect disesuaikan
+                  router.push('/client/applications'); // FIX: Jalur redirect disesuaikan
                   router.refresh();
                 }}
                 className="w-full h-14 rounded-2xl font-black text-lg shadow-xl shadow-primary/20"

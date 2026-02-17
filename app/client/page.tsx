@@ -117,7 +117,7 @@ export default function UserDashboard() {
           <h1 className="text-4xl font-black tracking-tighter text-primary">Dashboard Saya</h1>
           <p className="text-muted-foreground font-medium italic">"{greetingData.quote}"</p>
         </div>
-        <Link href="/dashboard/applications/new">
+        <Link href="/client/applications/new">
           <Button className="h-14 px-8 rounded-2xl shadow-xl font-black bg-primary flex items-center gap-2 hover:scale-105 transition-all">
             <Plus className="h-5 w-5" /> Mulai Pengajuan Baru
           </Button>
@@ -152,13 +152,13 @@ export default function UserDashboard() {
               <span className="flex h-2 w-2 rounded-full bg-red-500 animate-bounce" />
             )}
           </h2>
-          <Link href="/dashboard/applications" className="text-sm font-bold text-primary hover:underline">Lihat Semua</Link>
+          <Link href="/client/applications" className="text-sm font-bold text-primary hover:underline">Lihat Semua</Link>
         </div>
 
         <div className="grid gap-4">
           {recentApplications.length > 0 ? (
             recentApplications.map((app) => (
-              <Link key={app.id} href={`/dashboard/applications/${app.id}`}>
+              <Link key={app.id} href={`/client/applications/${app.id}`}>
                 <Card className={`group border-2 transition-all hover:border-primary/40 ${app.hasNewMessage ? 'border-primary/30 bg-primary/5' : 'border-slate-100'}`}>
                   <CardContent className="p-6 flex items-center justify-between">
                     <div className="flex items-center gap-4">

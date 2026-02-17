@@ -1,3 +1,5 @@
+// app/admin/services/[id]/fields/page.tsx
+
 import { createClient } from "@/utils/supabase/server";
 import { notFound } from "next/navigation";
 import { ChevronLeft, LayoutGrid } from "lucide-react";

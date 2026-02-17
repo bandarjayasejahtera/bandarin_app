@@ -3,17 +3,11 @@ import type { NextConfig } from "next";
 const nextConfig: NextConfig = {
   async redirects() {
     return [
-      // Fix 404: /user/dashboard/* has no route; redirect to /dashboard/*
-      {
-        source: "/user/dashboard",
-        destination: "/dashboard",
-        permanent: false,
-      },
-      {
-        source: "/user/dashboard/:path*",
-        destination: "/dashboard/:path*",
-        permanent: false,
-      },
+      // Canonical client dashboard is at /client; redirect old paths
+      { source: "/user/dashboard", destination: "/client", permanent: false },
+      { source: "/user/dashboard/:path*", destination: "/client/:path*", permanent: false },
+      { source: "/dashboard", destination: "/client", permanent: false },
+      { source: "/dashboard/:path*", destination: "/client/:path*", permanent: false },
     ];
   },
 };

@@ -47,7 +47,7 @@ export async function loginAction(prevState: any, formData: FormData) {
 
     if (data.session) {
       revalidatePath("/", "layout");
-      redirect("/dashboard");
+      redirect("/client");
     }
 
     return { message: "Pendaftaran berhasil! Cek email untuk verifikasi." };
@@ -60,7 +60,7 @@ export async function loginAction(prevState: any, formData: FormData) {
       return { message: error.message.includes("Invalid login") ? "Email/Password salah." : error.message };
     }
     revalidatePath("/", "layout");
-    redirect("/dashboard");
+    redirect("/client");
   }
 }
 

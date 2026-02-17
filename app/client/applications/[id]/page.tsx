@@ -84,7 +84,7 @@ export default async function UserApplicationDetailPage({ params }: { params: Pr
     <div className="max-w-7xl mx-auto space-y-8 pb-20 animate-in fade-in duration-500">
       {/* --- TOP BAR --- */}
       <div className="flex flex-col md:flex-row md:items-center justify-between gap-4">
-        <Link href="/dashboard/applications" className="group flex items-center gap-2 text-xs font-black uppercase tracking-widest text-slate-400 hover:text-blue-600 transition-colors">
+        <Link href="/client/applications" className="group flex items-center gap-2 text-xs font-black uppercase tracking-widest text-slate-400 hover:text-blue-600 transition-colors">
           <ArrowLeft className="h-4 w-4 transition-transform group-hover:-translate-x-1" /> Kembali ke Riwayat
         </Link>
         <div className="flex items-center gap-3">

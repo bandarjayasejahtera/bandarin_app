@@ -59,7 +59,7 @@ export default async function UserDashboardLayout({
         
         {/* BRAND LOGO */}
         <div className={`flex items-center gap-6 ${isLeftHanded ? "flex-row-reverse" : "flex-row"}`}>
-          <Link href="/dashboard" className={`flex items-center gap-2 font-bold text-xl text-primary group ${isLeftHanded ? "flex-row-reverse" : "flex-row"}`}>
+          <Link href="/client" className={`flex items-center gap-2 font-bold text-xl text-primary group ${isLeftHanded ? "flex-row-reverse" : "flex-row"}`}>
             <div className="p-1.5 bg-primary/10 rounded-lg group-hover:bg-primary transition-colors duration-300">
               <ShieldCheck className="h-6 w-6 text-primary group-hover:text-primary-foreground" />
             </div>
@@ -103,7 +103,7 @@ export default async function UserDashboardLayout({
               
               {/* ITEM: DASHBOARD SAYA */}
               <DropdownMenuItem asChild>
-                <Link href="/dashboard" className={`flex items-center gap-3 cursor-pointer py-2.5 px-3 rounded-md hover:bg-accent group ${isLeftHanded ? "flex-row-reverse text-right" : ""}`}>
+                <Link href="/client" className={`flex items-center gap-3 cursor-pointer py-2.5 px-3 rounded-md hover:bg-accent group ${isLeftHanded ? "flex-row-reverse text-right" : ""}`}>
                   <LayoutDashboard className="h-5 w-5 text-slate-600 group-hover:text-primary transition-colors" />
                   <span className="font-bold text-slate-800 dark:text-slate-200">Dashboard Utama</span>
                 </Link>
@@ -111,7 +111,7 @@ export default async function UserDashboardLayout({
               
               {/* ITEM: PENGAJUAN SAYA (Update ke /applications) */}
               <DropdownMenuItem asChild>
-                <Link href="/dashboard/applications" className={`flex items-center gap-3 cursor-pointer py-2.5 px-3 rounded-md hover:bg-accent group ${isLeftHanded ? "flex-row-reverse text-right" : ""}`}>
+                <Link href="/client/applications" className={`flex items-center gap-3 cursor-pointer py-2.5 px-3 rounded-md hover:bg-accent group ${isLeftHanded ? "flex-row-reverse text-right" : ""}`}>
                   <FileText className="h-5 w-5 text-slate-600 group-hover:text-primary transition-colors" />
                   <span className="font-bold text-slate-800 dark:text-slate-200">Riwayat Pengajuan</span>
                 </Link>
@@ -119,7 +119,7 @@ export default async function UserDashboardLayout({
 
               {/* ITEM: PENGATURAN PROFIL */}
               <DropdownMenuItem asChild>
-                <Link href="/dashboard/profile" className={`flex items-center gap-3 cursor-pointer py-2.5 px-3 rounded-md hover:bg-accent group ${isLeftHanded ? "flex-row-reverse text-right" : ""}`}>
+                <Link href="/client/profile" className={`flex items-center gap-3 cursor-pointer py-2.5 px-3 rounded-md hover:bg-accent group ${isLeftHanded ? "flex-row-reverse text-right" : ""}`}>
                   <Settings className="h-5 w-5 text-slate-600 group-hover:text-primary transition-colors" />
                   <span className="font-bold text-slate-800 dark:text-slate-200">Pengaturan Profil</span>
                 </Link>

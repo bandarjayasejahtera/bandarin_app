@@ -51,7 +51,7 @@ export async function updateSession(request: NextRequest) {
 
   // Jika sudah login tapi akses /login -> lempar ke dashboard
   if (request.nextUrl.pathname === '/login' && user) {
-     return NextResponse.redirect(new URL('/dashboard', request.url))
+     return NextResponse.redirect(new URL('/client', request.url))
   }
 
   return response

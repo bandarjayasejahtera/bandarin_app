@@ -86,7 +86,7 @@ export default async function ApplicationsPage() {
           </p>
         </div>
         
-        <Link href="/dashboard/applications/new">
+        <Link href="/client/applications/new">
           <Button className="bg-slate-900 hover:bg-slate-800 text-white rounded-2xl px-6 h-14 font-bold shadow-xl shadow-slate-200 dark:shadow-none transition-all active:scale-95 gap-2">
             <Plus className="h-5 w-5" />
             PENGAJUAN BARU
@@ -104,7 +104,7 @@ export default async function ApplicationsPage() {
             ).length;
 
             return (
-              <Link key={app.id} href={`/dashboard/applications/${app.id}`}>
+              <Link key={app.id} href={`/client/applications/${app.id}`}>
                 <Card className={cn(
                   "group relative overflow-hidden border-2 transition-all duration-300 hover:shadow-2xl hover:border-blue-200",
                   unreadMessages > 0 

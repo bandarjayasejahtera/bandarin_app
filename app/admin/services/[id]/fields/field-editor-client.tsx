@@ -1,3 +1,4 @@
+// app/admin/services/[id]/fields/field-editor-client.tsx
 "use client";
 
 import React, { useState, useEffect } from "react";
