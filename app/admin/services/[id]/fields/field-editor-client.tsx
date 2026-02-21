@@ -22,6 +22,7 @@ import { Label } from "@/components/ui/label";
 import { Card, CardContent } from "@/components/ui/card";
 import { createClient } from "@/utils/supabase/client";
 import { useRouter } from "next/navigation";
+import { toast } from "sonner"; // Tambahkan ini untuk notifikasi yang lebih cantik
 
 export function FieldEditorClient({ 
   serviceId, 
@@ -33,10 +34,13 @@ export function FieldEditorClient({
   const router = useRouter();
   const supabase = createClient();
   const [loading, setLoading] = useState(false);
-  const [fields, setFields] = useState(initialFields);
   const [isMounted, setIsMounted] = useState(false);
 
-  // Menghindari error hidrasi pada drag and drop
+  // LOGIC FIX 1: Menyuntikkan _uid (Unique ID) yang stabil untuk DND
+  const [fields, setFields] = useState(() => 
+    initialFields.map(f => ({ ...f, _uid: crypto.randomUUID() }))
+  );
+
   useEffect(() => {
     setIsMounted(true);
   }, []);
@@ -51,6 +55,7 @@ export function FieldEditorClient({
 
   const addField = () => {
     setFields([...fields, { 
+      _uid: crypto.randomUUID(), // LOGIC FIX 2: Tambahkan _uid acak saat create baru
       label: "", 
       field_name: "", 
       field_type: "text", 
@@ -71,23 +76,28 @@ export function FieldEditorClient({
   };
 
   const handleSave = async () => {
-    // 1. VALIDASI: Cek apakah ada field yang label atau namanya kosong
+    // 1. VALIDASI: Cek field kosong
     const blankFields = fields.filter(f => !f.label.trim() || !f.field_name.trim());
     if (blankFields.length > 0) {
-      alert("⚠️ Gagal Publikasi: Terdapat kolom Label atau Key ID yang masih kosong. Mohon lengkapi semua data.");
+      toast.error("Terdapat kolom Label atau Key ID yang masih kosong. Mohon lengkapi semua data.");
       return;
     }
-    // 2. VALIDASI: Cek duplikasi Key ID (harus unik)
+
+    // 2. VALIDASI: Cek duplikasi Key ID
     const fieldNames = fields.map(f => f.field_name);
     const hasDuplicates = fieldNames.some((val, i) => fieldNames.indexOf(val) !== i);
     if (hasDuplicates) {
-      alert("⚠️ Gagal Publikasi: Terdapat Key ID (Database) yang ganda. Setiap field harus memiliki Key ID yang unik.");
+      toast.error("Terdapat Key ID yang ganda. Setiap field harus memiliki Key ID unik.");
       return;
     }
+
     setLoading(true);
     try {
+      // Hapus data lama untuk refresh arsitektur
       await supabase.from('service_fields').delete().eq('service_id', serviceId);
+      
       if (fields.length > 0) {
+        // LOGIC FIX 3: Bersihkan _uid sebelum dikirim ke Supabase
         const fieldsToSave = fields.map((f, index) => ({
           service_id: serviceId,
           label: f.label.trim(),
@@ -97,13 +107,15 @@ export function FieldEditorClient({
           placeholder: f.placeholder || "",
           sort_order: index
         }));
+
         const { error } = await supabase.from('service_fields').insert(fieldsToSave);
         if (error) throw error;
       }
-      alert("🚀 Sukses! Arsitektur formulir telah dipublikasikan dan siap digunakan.");
+      
+      toast.success("Arsitektur formulir berhasil dipublikasikan!");
       router.refresh();
     } catch (error: any) {
-      alert("❌ Gagal Sinkronisasi: " + error.message);
+      toast.error("Gagal Sinkronisasi: " + error.message);
     } finally {
       setLoading(false);
     }
@@ -114,7 +126,7 @@ export function FieldEditorClient({
   return (
     <div className="space-y-10 pb-20 transition-all duration-500">
       
-      {/* HEADER ACTION - Auto Themes Aware */}
+      {/* HEADER ACTION */}
       <div className="sticky top-24 z-30 flex items-center justify-between p-6 bg-card/80 dark:bg-[#0B1120]/90 backdrop-blur-xl rounded-[2.5rem] border border-border dark:border-blue-900/40 shadow-xl transition-colors duration-500">
         <div className="flex items-center gap-4">
           <div className="p-3 bg-blue-600/10 rounded-2xl text-blue-500">
@@ -140,7 +152,8 @@ export function FieldEditorClient({
           {(provided) => (
             <div {...provided.droppableProps} ref={provided.innerRef} className="space-y-4">
               {fields.map((field, index) => (
-                <Draggable key={`field-${index}`} draggableId={`field-${index}`} index={index}>
+                // LOGIC FIX 4: Gunakan _uid sebagai key dan draggableId, bukan index!
+                <Draggable key={field._uid} draggableId={field._uid} index={index}>
                   {(provided, snapshot) => (
                     <Card 
                       ref={provided.innerRef}
@@ -151,7 +164,7 @@ export function FieldEditorClient({
                     >
                       <CardContent className="p-8 flex items-center gap-8">
                         
-                        {/* 1. HANDLE & NOMOR - PRO GREP */}
+                        {/* HANDLE & NOMOR */}
                         <div {...provided.dragHandleProps} className="flex items-center gap-4 min-w-[80px]">
                           <div className="p-2 text-muted-foreground hover:text-blue-500 cursor-grab active:cursor-grabbing transition-colors">
                             <GripVertical size={24} />
@@ -161,7 +174,7 @@ export function FieldEditorClient({
                           </span>
                         </div>
 
-                        {/* 2. AREA INPUT SEJAJAR - PERFECT ALIGNMENT */}
+                        {/* AREA INPUT SEJAJAR */}
                         <div className="flex-1 flex flex-row items-end gap-6">
                           
                           {/* Label Pertanyaan */}
@@ -184,7 +197,8 @@ export function FieldEditorClient({
                             </Label>
                             <Input 
                               value={field.field_name}
-                              onChange={(e) => updateField(index, 'field_name', e.target.value.toLowerCase().replace(/\s+/g, '_'))}
+                              // LOGIC FIX 5: Regex yang lebih ketat untuk ID DB, buang semua karakter non-alfanumerik
+                              onChange={(e) => updateField(index, 'field_name', e.target.value.toLowerCase().replace(/[^a-z0-9_]/g, '_'))}
                               placeholder="nama_direktur"
                               className="h-14 rounded-xl border-border dark:border-blue-800/60 bg-slate-50 dark:bg-slate-900/50 text-blue-600 dark:text-blue-400 font-mono text-sm shadow-inner cursor-text"
                             />
@@ -215,7 +229,7 @@ export function FieldEditorClient({
                             </div>
                           </div>
 
-                          {/* Status Wajib - Aligned to Bottom */}
+                          {/* Status Wajib */}
                           <div className="w-[160px] space-y-3">
                             <Label className="text-[11px] font-black uppercase tracking-[0.2em] text-transparent min-h-[16px]">
                               .
@@ -238,7 +252,7 @@ export function FieldEditorClient({
                           </div>
                         </div>
 
-                        {/* 3. DELETE ACTION - LARGE & CLEAR */}
+                        {/* DELETE ACTION */}
                         <div className="min-w-[60px] pt-7 flex justify-end">
                           <Button 
                             variant="ghost" 

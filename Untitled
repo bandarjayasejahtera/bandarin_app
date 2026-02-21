@@ -1,0 +1,2 @@
+# URL Aplikasi (untuk redirect setelah bayar)
+NEXT_PUBLIC_APP_URL=https://bandarin.vercel.app  # atau http://localhost:3000

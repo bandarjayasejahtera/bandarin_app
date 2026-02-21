@@ -1,19 +1,23 @@
-//components/payment/payment-button.tsx
+// components/payment/payment-button.tsx
+'use client';
 
-"use client";
+import { useState } from 'react';
+import { Button } from '@/components/ui/button';
+import { CreditCard, Loader2 } from 'lucide-react';
+import { createPaymentToken } from '@/actions/payment';
+import { toast } from 'sonner';
 
-import { useState } from "react";
-import { Button } from "@/components/ui/button";
-import { CreditCard, Loader2 } from "lucide-react";
-import { createPaymentToken } from "@/actions/payment";
-import { toast } from "sonner";
+interface Props {
+  applicationId: string;
+  hasExistingInvoice?: boolean; // true jika sudah ada invoice sebelumnya
+}
 
-export default function PaymentButton({ applicationId }: { applicationId: string }) {
+export default function PaymentButton({ applicationId, hasExistingInvoice = false }: Props) {
   const [loading, setLoading] = useState(false);
 
   const handlePay = async () => {
     setLoading(true);
-    
+
     try {
       const result = await createPaymentToken(applicationId);
 
@@ -23,28 +27,35 @@ export default function PaymentButton({ applicationId }: { applicationId: string
         return;
       }
 
-      // Jika berhasil mendapatkan URL Invoice Xendit, arahkan klien ke sana
       if (result.invoiceUrl) {
-        toast.loading("Mengarahkan ke halaman pembayaran aman Xendit...", { duration: 2000 });
+        toast.loading('Mengarahkan ke halaman pembayaran Xendit yang aman...', {
+          duration: 3000,
+        });
+        // Sedikit delay agar toast terlihat sebelum redirect
+        await new Promise((r) => setTimeout(r, 1500));
         window.location.href = result.invoiceUrl;
       } else {
-        toast.error("Gagal mendapatkan link pembayaran.");
+        toast.error('Gagal mendapatkan link pembayaran.');
         setLoading(false);
       }
-    } catch (error) {
-      toast.error("Terjadi kesalahan sistem.");
+    } catch {
+      toast.error('Terjadi kesalahan. Silakan coba lagi.');
       setLoading(false);
     }
   };
 
   return (
-    <Button 
-      onClick={handlePay} 
+    <Button
+      onClick={handlePay}
       disabled={loading}
-      className="w-full md:w-auto h-16 px-10 bg-white text-blue-600 font-black rounded-2xl text-lg shadow-xl hover:bg-slate-50 transition-all active:scale-95 flex gap-3"
+      className="w-full md:w-auto h-16 px-10 bg-white text-blue-600 font-black rounded-2xl text-lg shadow-xl hover:bg-slate-50 transition-all active:scale-95 flex gap-3 disabled:opacity-70"
     >
-      {loading ? <Loader2 className="animate-spin" /> : <CreditCard className="h-6 w-6" />}
-      {loading ? "MENYIAPKAN..." : "LANJUT PEMBAYARAN"}
+      {loading ? (
+        <Loader2 className="animate-spin h-6 w-6" />
+      ) : (
+        <CreditCard className="h-6 w-6" />
+      )}
+      {loading ? 'MENYIAPKAN...' : hasExistingInvoice ? 'LANJUTKAN PEMBAYARAN' : 'BAYAR SEKARANG'}
     </Button>
   );
 }

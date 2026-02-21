@@ -8,7 +8,7 @@ import {
   ArrowLeft, CheckCircle2, AlertCircle, 
   User, Phone, DollarSign, Briefcase, 
   MoreVertical, Clock, ShieldCheck,
-  Check, Circle, XCircle, Edit2
+  Check, Circle, XCircle, Edit2, SendHorizontal, Receipt
 } from "lucide-react";
 
 // UI Components
@@ -32,6 +32,14 @@ import {
   DropdownMenuItem,
   DropdownMenuTrigger,
 } from "@/components/ui/dropdown-menu";
+import {
+  Dialog,
+  DialogContent,
+  DialogDescription,
+  DialogFooter,
+  DialogHeader,
+  DialogTitle,
+} from "@/components/ui/dialog";
 
 // Utils
 import { toast } from "sonner";
@@ -39,6 +47,7 @@ import Link from "next/link";
 import { format } from "date-fns";
 import { id as idLocale } from "date-fns/locale";
 import { cn } from "@/lib/applicationSchema/utils";
+import { updateOrderStatusAction } from "@/actions/admin/order-actions";
 
 type OrderType = any;
 type MessageType = any;
@@ -66,8 +75,9 @@ interface OrderDetailClientProps {
 // Definisi Tahapan Timeline
 const TIMELINE_STEPS = [
   { id: 'pending', label: 'Pesanan Masuk', description: 'Menunggu review admin' },
-  { id: 'quoted', label: 'Penawaran Harga', description: 'Estimasi biaya dikirim' },
-  { id: 'process', label: 'Proses Pengerjaan', description: 'Sedang dikerjakan' },
+  { id: 'quoted', label: 'Menunggu Pembayaran', description: 'Penawaran harga telah dikirim' },
+  { id: 'paid', label: 'Pembayaran Berhasil', description: 'Dana telah diterima oleh sistem' },
+  { id: 'process', label: 'Sedang Diproses', description: 'Pengerjaan sedang berlangsung' },
   { id: 'review', label: 'Review Dokumen', description: 'Validasi hasil akhir' },
   { id: 'completed', label: 'Selesai', description: 'Layanan tuntas' },
 ];
@@ -80,9 +90,11 @@ export default function OrderDetailClient({ initialOrder, initialMessages, initi
   const [order, setOrder] = useState(initialOrder);
   const [isUpdating, setIsUpdating] = useState(false);
   const [isConnected, setIsConnected] = useState(false);
-  const [isEditingPrice, setIsEditingPrice] = useState(false);
-  const [priceEditValue, setPriceEditValue] = useState("");
   const [clientIsTyping, setClientIsTyping] = useState(false);
+  
+  // State untuk Pop-up Quotation
+  const [priceEditValue, setPriceEditValue] = useState("");
+  const [isQuotationModalOpen, setIsQuotationModalOpen] = useState(false);
 
   useEffect(() => {
     if (initialCurrentUserId) {
@@ -124,6 +136,13 @@ export default function OrderDetailClient({ initialOrder, initialMessages, initi
   }, [order.id, supabase]);
 
   const handleStatusChange = async (newStatus: string) => {
+    // JIKA ADMIN MEMILIH "QUOTED", BUKA POP-UP FORM HARGA
+    if (newStatus === 'quoted') {
+      setPriceEditValue(formatPriceWithCommas(order.quoted_price || 0));
+      setIsQuotationModalOpen(true);
+      return;
+    }
+
     setIsUpdating(true);
     
     // Optimistic Update: Update UI dulu biar terasa cepat
@@ -146,32 +165,42 @@ export default function OrderDetailClient({ initialOrder, initialMessages, initi
     setIsUpdating(false);
   };
 
-  const handlePriceUpdate = async (formData: FormData) => {
-    const raw = formData.get("quoted_price");
-    const priceStr = raw != null ? String(raw).replace(/\D/g, "") : "";
-    const quotedPrice = priceStr === "" ? null : parseInt(priceStr, 10);
+  const handleQuotationSubmit = async () => {
+    const cleanPrice = parsePriceFromCommas(priceEditValue);
+    const numericPrice = parseInt(cleanPrice, 10);
 
-    if (quotedPrice === null || isNaN(quotedPrice)) {
-      toast.error("Masukkan jumlah harga yang valid.");
+    // Validasi Input
+    if (!numericPrice || numericPrice <= 0 || isNaN(numericPrice)) {
+      toast.error("Masukkan nominal harga yang valid!");
       return;
     }
 
-    setOrder((prev: any) => ({ ...prev, quoted_price: quotedPrice, status: "quoted" }));
+    setIsUpdating(true);
 
-    const { error } = await supabase
-      .from("applications")
-      .update({ quoted_price: quotedPrice, status: "quoted" })
-      .eq("id", order.id);
+    try {
+      // Jalankan Server Action untuk update database tabel applications
+      const result = await updateOrderStatusAction(order.id, { 
+        quoted_price: numericPrice, // Sesuai tipe numeric(12, 2)
+        status: 'quoted'            // Sesuai constraint status
+      });
 
-    if (error) {
-      setOrder((prev: any) => ({ ...prev, quoted_price: order.quoted_price, status: order.status }));
-      toast.error("Gagal menyimpan harga.");
-      router.refresh();
-    } else {
-      setIsEditingPrice(false);
-      setPriceEditValue(formatPriceWithCommas(quotedPrice));
-      toast.success("Penawaran harga terkirim!");
-      router.refresh();
+      if (result.error) {
+        toast.error(`Gagal mengirim penawaran: ${result.error}`);
+      } else {
+        // Jika sukses: tutup modal, update state, beri notif, refresh halaman
+        setIsQuotationModalOpen(false);
+        setOrder((prev: any) => ({ 
+            ...prev, 
+            quoted_price: numericPrice, 
+            status: "quoted" 
+        }));
+        toast.success("Penawaran Harga Berhasil Dikirim!");
+        router.refresh();
+      }
+    } catch (err) {
+      toast.error("Terjadi kesalahan pada sistem.");
+    } finally {
+      setIsUpdating(false);
     }
   };
 
@@ -179,9 +208,10 @@ export default function OrderDetailClient({ initialOrder, initialMessages, initi
   const getStatusColor = (status: string) => {
     switch (status) {
       case 'pending': return 'bg-yellow-100 text-yellow-700 hover:bg-yellow-100 border-yellow-200';
+      case 'quoted': return 'bg-purple-100 text-purple-700 hover:bg-purple-100 border-purple-200';
+      case 'paid': return 'bg-emerald-100 text-emerald-700 hover:bg-emerald-100 border-emerald-200';
       case 'process': return 'bg-blue-100 text-blue-700 hover:bg-blue-100 border-blue-200';
       case 'completed': return 'bg-green-100 text-green-700 hover:bg-green-100 border-green-200';
-      case 'quoted': return 'bg-purple-100 text-purple-700 hover:bg-purple-100 border-purple-200';
       case 'cancelled': return 'bg-red-100 text-red-700 hover:bg-red-100 border-red-200';
       default: return 'bg-slate-100 text-slate-700 hover:bg-slate-100 border-slate-200';
     }
@@ -296,7 +326,8 @@ export default function OrderDetailClient({ initialOrder, initialMessages, initi
                         </SelectTrigger>
                         <SelectContent className="z-[100]" position="popper" sideOffset={4}>
                             <SelectItem value="pending">⏳ Pending Review</SelectItem>
-                            <SelectItem value="quoted">💰 Menunggu Pembayaran</SelectItem>
+                            <SelectItem value="quoted">💰 Kirimkan Penawaran Harga</SelectItem>
+                            <SelectItem value="paid">💳 Pembayaran Berhasil</SelectItem>
                             <SelectItem value="process">⚙️ Sedang Diproses</SelectItem>
                             <SelectItem value="review">👀 Review Dokumen</SelectItem>
                             <SelectItem value="completed">✅ Selesai</SelectItem>
@@ -306,7 +337,7 @@ export default function OrderDetailClient({ initialOrder, initialMessages, initi
                 </CardContent>
             </Card>
 
-          {/* Service & Pricing Card */}
+          {/* Service & Pricing Card (DISPLAY ONLY) */}
             <Card className="shadow-sm border-slate-200 dark:border-slate-800 shrink-0">
                 <CardHeader className="pb-2">
                     <CardTitle className="text-xs font-semibold text-slate-500 dark:text-slate-400 uppercase tracking-wider flex items-center gap-2">
@@ -320,67 +351,17 @@ export default function OrderDetailClient({ initialOrder, initialMessages, initi
                         <p className="text-sm font-bold text-slate-800 dark:text-slate-200">{order.services?.name}</p>
                     </div>
 
-                    {/* Conditional Logic untuk Mode Edit vs Mode Label */}
-                    {!isEditingPrice ? (
-                        <div className="space-y-3 animate-in fade-in slide-in-from-top-1 duration-300">
-                            <div className="space-y-1.5">
-                                <label className="text-xs font-semibold text-slate-600 dark:text-slate-400">Total Tagihan (Quotation)</label>
-                                <div className="p-4 bg-slate-50 dark:bg-slate-800/50 rounded-xl border border-slate-100 dark:border-slate-700 flex items-center justify-between group">
-                                    <h3 className="text-lg font-black text-slate-900 dark:text-white tracking-tight">
-                                        {formatRupiah(order.quoted_price || 0)}
-                                    </h3>
-                                    <Button 
-                                        variant="ghost" 
-                                        size="sm" 
-                                        onClick={() => {
-                                          setIsEditingPrice(true);
-                                          setPriceEditValue(formatPriceWithCommas(order.quoted_price));
-                                        }}
-                                        className="text-blue-600 hover:text-blue-700 hover:bg-blue-50 h-8 gap-2 font-bold px-2 rounded-lg"
-                                    >
-                                        <Edit2 className="h-3.5 w-3.5" />
-                                        Edit
-                                    </Button>
-                                </div>
-                            </div>
+                    <div className="space-y-1.5">
+                        <label className="text-xs font-semibold text-slate-600 dark:text-slate-400">Total Tagihan (Quotation)</label>
+                        <div className="p-4 bg-slate-50 dark:bg-slate-800/50 rounded-xl border border-slate-100 dark:border-slate-700 flex items-center justify-between">
+                            <h3 className="text-lg font-black text-slate-900 dark:text-white tracking-tight">
+                                {order.quoted_price ? formatRupiah(order.quoted_price) : "Belum diatur"}
+                            </h3>
+                            {order.status === 'quoted' && (
+                              <Badge className="bg-emerald-500/10 text-emerald-600 border-emerald-100 text-[10px] uppercase font-black">Terkirim</Badge>
+                            )}
                         </div>
-                    ) : (
-                        <form action={handlePriceUpdate} className="space-y-3 animate-in fade-in zoom-in-95 duration-200">
-                            <div className="space-y-1.5">
-                                <label className="text-xs font-semibold text-slate-600">Total Tagihan (Quotation)</label>
-                                <div className="relative">
-                                    <div className="absolute left-3 top-1/2 -translate-y-1/2 text-slate-400 font-serif text-sm">Rp</div>
-                                    <input type="hidden" name="quoted_price" value={parsePriceFromCommas(priceEditValue)} />
-                                    <Input 
-                                        type="text"
-                                        inputMode="numeric"
-                                        value={priceEditValue}
-                                        onChange={(e) => setPriceEditValue(formatPriceWithCommas(e.target.value))}
-                                        placeholder="Contoh: 1.500.000"
-                                        className="pl-10 font-mono text-right font-medium rounded-xl border-slate-200 dark:border-slate-700 dark:bg-slate-800/50 focus-visible:ring-blue-500 h-12"
-                                        required
-                                    />
-                                </div>
-                            </div>
-                            <div className="flex gap-2">
-                                <Button 
-                                    type="submit" 
-                                    disabled={isUpdating}
-                                    className="flex-1 bg-slate-900 hover:bg-slate-800 text-white rounded-xl shadow-md transition-all active:scale-95"
-                                >
-                                    {isUpdating ? "Menyimpan..." : "Simpan Penawaran"}
-                                </Button>
-                                <Button 
-                                    type="button" 
-                                    variant="outline" 
-                                    onClick={() => setIsEditingPrice(false)}
-                                    className="rounded-xl shrink-0"
-                                >
-                                    Batal
-                                </Button>
-                            </div>
-                        </form>
-                    )}
+                    </div>
                 </CardContent>
             </Card>
 
@@ -461,6 +442,66 @@ export default function OrderDetailClient({ initialOrder, initialMessages, initi
           ) : null}
         </div>
       </div>
+
+      {/* MODAL FORM QUOTATION */}
+      <Dialog open={isQuotationModalOpen} onOpenChange={setIsQuotationModalOpen}>
+        <DialogContent className="rounded-[2.5rem] max-w-md p-0 overflow-hidden border-none shadow-2xl">
+          <div className="bg-blue-600 p-8 text-white relative">
+            <DialogHeader>
+                <div className="h-12 w-12 bg-white/20 rounded-2xl flex items-center justify-center mb-4">
+                  <Receipt className="h-6 w-6 text-white" />
+                </div>
+                <DialogTitle className="text-2xl font-black tracking-tight text-white leading-tight">
+                  Kirim Penawaran <br/> Harga (Quotation)
+                </DialogTitle>
+                <DialogDescription className="text-blue-100 font-medium pt-2">
+                  Masukkan nominal biaya layanan untuk <strong>{order.company_name}</strong>. Klien akan segera menerima tagihan.
+                </DialogDescription>
+            </DialogHeader>
+          </div>
+          
+          <div className="p-8 space-y-6 bg-white">
+            <div className="space-y-3">
+              <label className="text-[10px] font-black text-slate-400 uppercase tracking-[0.2em]">Total Biaya Layanan</label>
+              <div className="relative group">
+                  <div className="absolute left-4 top-1/2 -translate-y-1/2 text-slate-400 font-black text-lg transition-colors group-focus-within:text-blue-600">Rp</div>
+                  <Input 
+                    type="text" 
+                    inputMode="numeric" 
+                    value={priceEditValue} 
+                    onChange={(e) => setPriceEditValue(formatPriceWithCommas(e.target.value))} 
+                    placeholder="0" 
+                    className="pl-14 text-right font-black text-xl rounded-2xl border-2 border-slate-100 focus-visible:ring-blue-600 focus-visible:border-blue-600 h-16 transition-all"
+                  />
+              </div>
+            </div>
+
+            <div className="bg-slate-50 p-4 rounded-2xl border border-slate-100">
+               <div className="flex justify-between items-center text-sm">
+                  <span className="text-slate-500 font-bold">Layanan</span>
+                  <span className="text-slate-900 font-black">{order.services?.name}</span>
+               </div>
+            </div>
+
+            <DialogFooter className="flex flex-col sm:flex-row gap-3 pt-2">
+              <Button 
+                onClick={handleQuotationSubmit} 
+                disabled={isUpdating} 
+                className="flex-[2] h-14 rounded-2xl font-black bg-blue-600 hover:bg-blue-700 shadow-lg shadow-blue-200 active:scale-95 transition-all text-base"
+              >
+                {isUpdating ? "MENGIRIM..." : <><SendHorizontal className="mr-2 h-5 w-5" /> KIRIM PENAWARAN</>}
+              </Button>
+              <Button 
+                variant="ghost" 
+                onClick={() => setIsQuotationModalOpen(false)} 
+                className="flex-1 h-14 rounded-2xl font-bold text-slate-400 hover:text-slate-600"
+              >
+                BATAL
+              </Button>
+            </DialogFooter>
+          </div>
+        </DialogContent>
+      </Dialog>
     </div>
   );
 }
