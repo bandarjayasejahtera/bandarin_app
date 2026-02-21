@@ -6,6 +6,7 @@ import { notFound, redirect } from 'next/navigation';
 import { ChatBoxClient } from '@/components/dashboard/chat-box-client';
 import { Card, CardContent, CardHeader, CardTitle } from '@/components/ui/card';
 import { Badge } from '@/components/ui/badge';
+import { Button } from '@/components/ui/button'; // <-- Tambahkan import Button
 import {
   FileText,
   ArrowLeft,
@@ -14,6 +15,8 @@ import {
   Circle,
   XCircle,
   ShieldCheck,
+  DownloadCloud, // <-- Icon baru untuk download
+  FileCheck      // <-- Icon baru untuk dokumen selesai
 } from 'lucide-react';
 import Link from 'next/link';
 import { format } from 'date-fns';
@@ -22,7 +25,7 @@ import { cn } from '@/lib/applicationSchema/utils';
 import { PaymentStatusBanner } from '@/components/payment/payment-status-banner';
 import { PaymentSuccessToast } from '@/components/payment/payment-success-toast';
 
-// Definisi Tahapan Timeline (Konsisten dengan Admin)
+// Definisi Tahapan Timeline
 const TIMELINE_STEPS = [
   { id: 'pending', label: 'Pesanan Masuk', description: 'Admin sedang meninjau berkas Anda' },
   { id: 'quoted', label: 'Penawaran Harga', description: 'Segera lakukan pembayaran untuk lanjut' },
@@ -47,7 +50,7 @@ export default async function UserApplicationDetailPage({ params, searchParams }
 
   if (!user) redirect('/login');
 
-  // Fetch detail aplikasi
+  // Fetch detail aplikasi (final_document_url otomatis ditarik karena menggunakan '*')
   const { data: app } = await supabase
     .from('applications')
     .select(`
@@ -130,16 +133,45 @@ export default async function UserApplicationDetailPage({ params, searchParams }
             <FileText className="absolute right-[-20px] bottom-[-20px] h-40 w-40 text-slate-50 opacity-10 dark:opacity-5" />
           </div>
 
-          {/* PAYMENT STATUS BANNER — Dinamis berdasarkan status */}
-          <PaymentStatusBanner
-            applicationId={id}
-            status={app.status}
-            paymentStatus={app.payment_status}
-            quotedPrice={app.quoted_price}
-            paymentPaidAt={app.payment_paid_at}
-            paymentInvoiceId={app.payment_invoice_id}
-            isAdmin={false}
-          />
+          {/* 🚀 CARD DOWNLOAD DOKUMEN FINAL (Muncul hanya jika Selesai & Dokumen Ada) */}
+          {app.status === 'completed' && app.final_document_url && (
+            <Card className="rounded-[2.5rem] p-8 md:p-10 shadow-lg shadow-emerald-200/50 border-emerald-100 bg-emerald-50 relative overflow-hidden animate-in zoom-in-95 duration-500">
+              <div className="relative z-10 flex flex-col md:flex-row items-center justify-between gap-6 text-center md:text-left">
+                <div className="flex flex-col md:flex-row items-center gap-5">
+                  <div className="h-16 w-16 bg-emerald-100 text-emerald-600 rounded-3xl flex items-center justify-center shrink-0 shadow-inner">
+                    <FileCheck className="h-8 w-8" />
+                  </div>
+                  <div>
+                    <h3 className="text-2xl font-black text-emerald-900 uppercase tracking-tight">Pengajuan Telah Terbit!</h3>
+                    <p className="text-sm font-medium text-emerald-700 mt-1 max-w-sm">
+                      Selamat, dokumen legalitas Anda telah selesai diproses dan kini siap untuk diunduh.
+                    </p>
+                  </div>
+                </div>
+                <a href={app.final_document_url} target="_blank" rel="noopener noreferrer" className="w-full md:w-auto z-10">
+                  <Button className="w-full md:w-auto h-14 px-8 rounded-2xl bg-emerald-600 hover:bg-emerald-700 text-white font-black shadow-lg shadow-emerald-200 transition-all hover:scale-105 group text-base">
+                    <DownloadCloud className="mr-2 h-6 w-6 group-hover:-translate-y-1 transition-transform" />
+                    DOWNLOAD DOKUMEN
+                  </Button>
+                </a>
+              </div>
+              {/* Dekorasi Background Card */}
+              <ShieldCheck className="absolute right-[-20px] bottom-[-20px] h-48 w-48 text-emerald-600 opacity-[0.03] pointer-events-none" />
+            </Card>
+          )}
+
+          {/* PAYMENT STATUS BANNER (Sembunyikan jika sudah selesai agar UI lebih bersih, opsional) */}
+          {app.status !== 'completed' && (
+            <PaymentStatusBanner
+              applicationId={id}
+              status={app.status}
+              paymentStatus={app.payment_status}
+              quotedPrice={app.quoted_price}
+              paymentPaidAt={app.payment_paid_at}
+              paymentInvoiceId={app.payment_invoice_id}
+              isAdmin={false}
+            />
+          )}
 
           {/* PROGRESS TIMELINE */}
           <Card className="rounded-[2.5rem] p-8 md:p-10 shadow-sm border-slate-100">
