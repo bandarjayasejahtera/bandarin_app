@@ -10,7 +10,8 @@ import {
   Clock, 
   CheckCircle2, 
   AlertCircle, 
-  FileText 
+  FileText,
+  MessageCircle // <-- Tambahkan icon pesan
 } from 'lucide-react';
 import Link from 'next/link';
 import { Button } from '@/components/ui/button';
@@ -19,23 +20,24 @@ import { Badge } from '@/components/ui/badge';
 export default async function AdminOrdersPage() {
   const supabase = await createClient();
 
-  // Fetch semua aplikasi dengan join ke profiles dan services
-  // PERBAIKAN: Menggunakan alias spesifik (!nama_constraint) untuk menghindari error ambiguitas
+  // Ambil data user admin yang sedang login
+  const { data: { user } } = await supabase.auth.getUser();
+
+  // Fetch semua aplikasi dengan join ke profiles, services, DAN application_messages
   const { data: orders, error } = await supabase
     .from('applications')
     .select(`
       *,
       profiles:profiles!applications_userid_fkey (full_name, email),
-      services:services!applications_service_id_fkey (name)
+      services:services!applications_service_id_fkey (name),
+      application_messages (id, is_read, user_id)
     `)
     .order('created_at', { ascending: false });
 
   if (error) {
-    // Gunakan JSON.stringify agar pesan error terbaca jelas di console
     console.error("Error fetching orders:", JSON.stringify(error, null, 2));
   }
 
-  // Fallback data agar halaman tidak crash jika error
   const safeOrders = orders || [];
 
   // Fungsi Helper untuk warna status
@@ -86,41 +88,70 @@ export default async function AdminOrdersPage() {
             </thead>
             <tbody className="divide-y divide-slate-100">
               {safeOrders.length > 0 ? (
-                safeOrders.map((order: any) => (
-                  <tr key={order.id} className="hover:bg-slate-50/50 transition-colors">
-                    <td className="px-6 py-4 text-sm text-slate-500 font-medium">
-                      {new Date(order.created_at).toLocaleDateString('id-ID', { day: '2-digit', month: 'short', year: 'numeric' })}
-                    </td>
-                    <td className="px-6 py-4">
-                      <p className="text-sm font-bold text-slate-900">{order.profiles?.full_name || 'User Tanpa Nama'}</p>
-                      <p className="text-[10px] text-slate-400 font-medium">{order.profiles?.email}</p>
-                    </td>
-                    <td className="px-6 py-4">
-                      <div className="flex items-center gap-2">
-                        <div className="p-1.5 bg-blue-50 rounded-md">
-                          <FileText className="h-3 w-3 text-blue-600" />
+                safeOrders.map((order: any) => {
+                  // Hitung pesan yang belum dibaca dari Klien
+                  const unreadCount = order.application_messages?.filter(
+                    (m: any) => !m.is_read && m.user_id !== user?.id
+                  ).length || 0;
+
+                  return (
+                    <tr 
+                      key={order.id} 
+                      className={`transition-colors ${unreadCount > 0 ? 'bg-blue-50/40 hover:bg-blue-50/80' : 'hover:bg-slate-50/50'}`}
+                    >
+                      <td className="px-6 py-4 text-sm text-slate-500 font-medium">
+                        {new Date(order.created_at).toLocaleDateString('id-ID', { day: '2-digit', month: 'short', year: 'numeric' })}
+                      </td>
+                      <td className="px-6 py-4">
+                        <div className="flex items-center gap-2">
+                          <div>
+                            <p className="text-sm font-bold text-slate-900">{order.profiles?.full_name || 'User Tanpa Nama'}</p>
+                            <p className="text-[10px] text-slate-400 font-medium">{order.profiles?.email}</p>
+                          </div>
                         </div>
-                        <span className="text-sm font-bold text-slate-700">{order.services?.name}</span>
-                      </div>
-                    </td>
-                    <td className="px-6 py-4">
-                      <Badge variant="outline" className={`capitalize font-bold px-3 py-1 ${getStatusStyle(order.status)}`}>
-                        {order.status}
-                      </Badge>
-                    </td>
-                    <td className="px-6 py-4 text-sm font-black text-slate-900">
-                      {order.quoted_price ? `Rp ${order.quoted_price.toLocaleString()}` : '-'}
-                    </td>
-                    <td className="px-6 py-4 text-center">
-                      {/* Pastikan link ini mengarah ke detail page yang benar */}
-                      <Link href={`/admin/services/orders/${order.id}`}>
-                        <Button variant="outline" size="sm" className="font-bold gap-2 hover:bg-blue-50 hover:text-blue-600 hover:border-blue-200">
-                          <Eye className="h-4 w-4" /> Kelola
-                        </Button>
-                      </Link>
-                    </td>
-                  </tr>
-                ))
+                      </td>
+                      <td className="px-6 py-4">
+                        <div className="flex items-center gap-2">
+                          <div className={`p-1.5 rounded-md ${unreadCount > 0 ? 'bg-blue-100' : 'bg-blue-50'}`}>
+                            <FileText className={`h-3 w-3 ${unreadCount > 0 ? 'text-blue-700' : 'text-blue-600'}`} />
+                          </div>
+                          <span className="text-sm font-bold text-slate-700">{order.services?.name}</span>
+                        </div>
+                      </td>
+                      <td className="px-6 py-4">
+                        <Badge variant="outline" className={`capitalize font-bold px-3 py-1 ${getStatusStyle(order.status)}`}>
+                          {order.status}
+                        </Badge>
+                      </td>
+                      <td className="px-6 py-4 text-sm font-black text-slate-900">
+                        {order.quoted_price ? `Rp ${order.quoted_price.toLocaleString()}` : '-'}
+                      </td>
+                      <td className="px-6 py-4 text-center">
+                        <Link href={`/admin/services/orders/${order.id}`} className="relative inline-block">
+                          <Button 
+                            variant="outline" 
+                            size="sm" 
+                            className={`font-bold gap-2 transition-all ${
+                              unreadCount > 0 
+                              ? 'bg-blue-600 text-white hover:bg-blue-700 border-transparent shadow-md shadow-blue-200' 
+                              : 'hover:bg-blue-50 hover:text-blue-600 hover:border-blue-200'
+                            }`}
+                          >
+                            {unreadCount > 0 ? <MessageCircle className="h-4 w-4" /> : <Eye className="h-4 w-4" />} 
+                            {unreadCount > 0 ? 'Balas' : 'Kelola'}
+                          </Button>
+                          
+                          {/* BADGE MERAH PADA TOMBOL */}
+                          {unreadCount > 0 && (
+                            <span className="absolute -top-2 -right-2 flex h-5 w-5 items-center justify-center rounded-full bg-red-500 text-[10px] font-black text-white shadow-sm ring-2 ring-white animate-bounce">
+                              {unreadCount}
+                            </span>
+                          )}
+                        </Link>
+                      </td>
+                    </tr>
+                  );
+                })
               ) : (
                 <tr>
                   <td colSpan={6} className="px-6 py-20 text-center text-slate-400 italic">

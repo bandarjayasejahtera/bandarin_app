@@ -49,9 +49,11 @@ export async function updateSession(request: NextRequest) {
     return NextResponse.redirect(new URL('/login', request.url))
   }
 
-  // Jika sudah login tapi akses /login -> lempar ke dashboard
+  // Jika sudah login tapi akses /login -> lempar ke dashboard sesuai role
   if (request.nextUrl.pathname === '/login' && user) {
-     return NextResponse.redirect(new URL('/client', request.url))
+    const { data: profile } = await supabase.from('profiles').select('role').eq('id', user.id).single()
+    const dashboardPath = profile?.role === 'admin' ? '/admin' : '/client'
+    return NextResponse.redirect(new URL(dashboardPath, request.url))
   }
 
   return response

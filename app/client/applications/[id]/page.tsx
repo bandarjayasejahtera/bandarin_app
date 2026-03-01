@@ -6,7 +6,7 @@ import { notFound, redirect } from 'next/navigation';
 import { ChatBoxClient } from '@/components/dashboard/chat-box-client';
 import { Card, CardContent, CardHeader, CardTitle } from '@/components/ui/card';
 import { Badge } from '@/components/ui/badge';
-import { Button } from '@/components/ui/button'; // <-- Tambahkan import Button
+import { Button } from '@/components/ui/button';
 import {
   FileText,
   ArrowLeft,
@@ -15,8 +15,8 @@ import {
   Circle,
   XCircle,
   ShieldCheck,
-  DownloadCloud, // <-- Icon baru untuk download
-  FileCheck      // <-- Icon baru untuk dokumen selesai
+  DownloadCloud,
+  FileCheck      
 } from 'lucide-react';
 import Link from 'next/link';
 import { format } from 'date-fns';
@@ -44,13 +44,10 @@ export default async function UserApplicationDetailPage({ params, searchParams }
   const { payment } = await searchParams;
 
   const supabase = await createClient();
-  const {
-    data: { user },
-  } = await supabase.auth.getUser();
+  const { data: { user } } = await supabase.auth.getUser();
 
   if (!user) redirect('/login');
 
-  // Fetch detail aplikasi (final_document_url otomatis ditarik karena menggunakan '*')
   const { data: app } = await supabase
     .from('applications')
     .select(`
@@ -63,7 +60,6 @@ export default async function UserApplicationDetailPage({ params, searchParams }
 
   if (!app) notFound();
 
-  // Fetch riwayat chat
   const { data: messages } = await supabase
     .from('application_messages')
     .select(`
@@ -72,6 +68,10 @@ export default async function UserApplicationDetailPage({ params, searchParams }
     `)
     .eq('application_id', id)
     .order('created_at', { ascending: true });
+
+  // PENGHAPUSAN: Kita telah menghapus pemanggilan markMessagesAsReadAction di sini.
+  // Eksekusinya sekarang murni diserahkan ke komponen ChatBoxCore (via useEffect) 
+  // agar tidak menyalahi aturan Rendering Next.js.
 
   const currentStepIndex = TIMELINE_STEPS.findIndex((s) => s.id === app.status);
   const isCancelled = app.status === 'cancelled';
@@ -89,8 +89,6 @@ export default async function UserApplicationDetailPage({ params, searchParams }
 
   return (
     <div className="max-w-7xl mx-auto space-y-8 pb-20 animate-in fade-in duration-500">
-
-      {/* Toast notifikasi dari redirect Xendit */}
       <PaymentSuccessToast paymentParam={payment} />
 
       {/* TOP BAR */}
@@ -116,10 +114,8 @@ export default async function UserApplicationDetailPage({ params, searchParams }
       </div>
 
       <div className="grid grid-cols-1 lg:grid-cols-12 gap-8 items-start">
-
         {/* LEFT COLUMN (8 Cols) */}
         <div className="lg:col-span-8 space-y-8">
-
           {/* Main Title Card */}
           <div className="bg-white dark:bg-slate-900 p-8 md:p-10 rounded-[2.5rem] border shadow-2xl shadow-slate-200/50 dark:shadow-none relative overflow-hidden">
             <div className="relative z-10">
@@ -133,7 +129,7 @@ export default async function UserApplicationDetailPage({ params, searchParams }
             <FileText className="absolute right-[-20px] bottom-[-20px] h-40 w-40 text-slate-50 opacity-10 dark:opacity-5" />
           </div>
 
-          {/* 🚀 CARD DOWNLOAD DOKUMEN FINAL (Muncul hanya jika Selesai & Dokumen Ada) */}
+          {/* CARD DOWNLOAD DOKUMEN FINAL */}
           {app.status === 'completed' && app.final_document_url && (
             <Card className="rounded-[2.5rem] p-8 md:p-10 shadow-lg shadow-emerald-200/50 border-emerald-100 bg-emerald-50 relative overflow-hidden animate-in zoom-in-95 duration-500">
               <div className="relative z-10 flex flex-col md:flex-row items-center justify-between gap-6 text-center md:text-left">
@@ -155,12 +151,10 @@ export default async function UserApplicationDetailPage({ params, searchParams }
                   </Button>
                 </a>
               </div>
-              {/* Dekorasi Background Card */}
               <ShieldCheck className="absolute right-[-20px] bottom-[-20px] h-48 w-48 text-emerald-600 opacity-[0.03] pointer-events-none" />
             </Card>
           )}
 
-          {/* PAYMENT STATUS BANNER (Sembunyikan jika sudah selesai agar UI lebih bersih, opsional) */}
           {app.status !== 'completed' && (
             <PaymentStatusBanner
               applicationId={id}
@@ -190,7 +184,6 @@ export default async function UserApplicationDetailPage({ params, searchParams }
                   else if (index < currentStepIndex || app.status === 'completed') stepStatus = 'completed';
                   else if (index === currentStepIndex) stepStatus = 'current';
 
-                  // Badge LUNAS di step quoted jika sudah bayar
                   const showPaidBadge = step.id === 'quoted' && app.payment_status === 'paid';
 
                   return (
@@ -243,10 +236,7 @@ export default async function UserApplicationDetailPage({ params, searchParams }
             </CardHeader>
             <div className="grid grid-cols-1 md:grid-cols-2 gap-8">
               {Object.entries(app.form_data || {}).map(([key, val]: [string, any]) => (
-                <div
-                  key={key}
-                  className="bg-slate-50 p-4 rounded-2xl border border-slate-100 group hover:bg-white hover:border-blue-200 transition-all"
-                >
+                <div key={key} className="bg-slate-50 p-4 rounded-2xl border border-slate-100 group hover:bg-white hover:border-blue-200 transition-all">
                   <p className="text-[10px] font-black uppercase text-slate-400 tracking-widest mb-1">
                     {key.split('_').join(' ')}
                   </p>

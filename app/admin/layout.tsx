@@ -42,7 +42,7 @@ export default async function AdminLayout({ children }: { children: React.ReactN
     .single();
 
   if (!profile || profile.role !== 'admin') {
-    redirect("/"); 
+    redirect("/login"); 
   }
 
   const navItems = [
@@ -94,7 +94,7 @@ export default async function AdminLayout({ children }: { children: React.ReactN
           "use server"; 
           const sb = await createClient();
           await sb.auth.signOut();
-          redirect("/login"); 
+          redirect("/"); 
         }}>
           <Button variant="ghost" size="sm" className="w-full justify-start text-red-500 hover:bg-red-50 dark:hover:bg-red-950/50 hover:text-red-600 rounded-lg h-9 font-bold text-xs">
             <LogOut className="h-3.5 w-3.5 mr-2" /> Keluar

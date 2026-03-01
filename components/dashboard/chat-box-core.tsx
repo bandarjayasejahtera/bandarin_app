@@ -190,8 +190,12 @@ export function ChatBoxCore({
             replyToData = data;
           }
 
-          const enriched = { ...newMsg, profiles: profile, reply_to: replyToData };
-          
+          const enriched: ChatMessage = {
+            ...newMsg,
+            profiles: profile ?? undefined,
+            reply_to: replyToData as ChatMessage | undefined,
+          };
+
           setMessages(prev => {
             if (prev.some(m => m.id === enriched.id)) return prev;
             return [...prev, enriched];

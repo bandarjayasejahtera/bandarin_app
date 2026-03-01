@@ -45,9 +45,10 @@ export async function loginAction(prevState: any, formData: FormData) {
       return { message: error.message };
     }
 
-    if (data.session) {
+    if (data.session?.user) {
       revalidatePath("/", "layout");
-      redirect("/client");
+      const { data: profile } = await supabase.from("profiles").select("role").eq("id", data.session.user.id).single();
+      redirect(profile?.role === "admin" ? "/admin" : "/client");
     }
 
     return { message: "Pendaftaran berhasil! Cek email untuk verifikasi." };
@@ -55,13 +56,16 @@ export async function loginAction(prevState: any, formData: FormData) {
 
   // === LOGIKA LOGIN ===
   else {
-    const { error } = await supabase.auth.signInWithPassword({ email, password });
+    const { data, error } = await supabase.auth.signInWithPassword({ email, password });
     if (error) {
       return { message: error.message.includes("Invalid login") ? "Email/Password salah." : error.message };
     }
     revalidatePath("/", "layout");
+    if (data.user) {
+      const { data: profile } = await supabase.from("profiles").select("role").eq("id", data.user.id).single();
+      redirect(profile?.role === "admin" ? "/admin" : "/client");
+    }
     redirect("/client");
   }
 }
 
-// ... (fungsi loginWithGoogle tetap sama) ...

@@ -1,6 +1,5 @@
 // app/api/webhooks/xendit/route.ts
 // ⚠️  PERHATIAN: File ini HARUS bernama route.ts (bukan ruote.ts)
-//     Hapus file app/api/webhooks/xendit/ruote.ts yang lama!
 
 import { NextResponse } from 'next/server';
 import { createClient } from '@supabase/supabase-js';
@@ -31,18 +30,44 @@ export async function POST(request: Request) {
       return NextResponse.json({ message: 'Payload tidak lengkap' }, { status: 400 });
     }
 
-    // 3. Cari order berdasarkan payment_invoice_id
+    // 3. Cari order berdasarkan payment_invoice_id, SERTA ambil data Profil dan Service
     const { data: order, error: findError } = await supabaseAdmin
       .from('applications')
-      .select('id, user_id, company_name, payment_status, quoted_price')
+      .select(`
+        id, 
+        user_id, 
+        company_name, 
+        payment_status, 
+        quoted_price,
+        profiles:profiles!applications_userid_fkey (full_name),
+        services:services!applications_service_id_fkey (name)
+      `)
       .eq('payment_invoice_id', external_id)
       .single();
 
     if (findError || !order) {
-      // Return 200 agar Xendit tidak terus-menerus retry
       console.warn(`[XENDIT WEBHOOK] Invoice tidak dikenal: ${external_id} — diabaikan`);
       return NextResponse.json({ message: 'Invoice tidak ditemukan, diabaikan' }, { status: 200 });
     }
+
+    // ========================================================================
+    // 🚀 LOGIKA FALLBACK NAMA: Cegah kata "null" muncul di notifikasi
+    // ========================================================================
+    // Ambil nama klien dengan aman
+    const clientName = Array.isArray(order.profiles) 
+      ? order.profiles[0]?.full_name 
+      : order.profiles?.full_name || 'Klien';
+
+    // Ambil nama layanan dengan aman
+    const serviceName = Array.isArray(order.services) 
+      ? order.services[0]?.name 
+      : order.services?.name || 'Layanan';
+
+    // Format target notifikasi (Contoh: "Pendirian PT - PT Sukses Makmur" atau sekadar "Pendirian PT")
+    const displayTarget = order.company_name 
+      ? `${serviceName} (${order.company_name})` 
+      : serviceName;
+    // ========================================================================
 
     // 4. Proses berdasarkan status Xendit
     if (status === 'PAID' || status === 'SETTLED') {
@@ -79,7 +104,7 @@ export async function POST(request: Request) {
       await supabaseAdmin.from('notifications').insert({
         user_id: order.user_id,
         title: '✅ Pembayaran Berhasil!',
-        message: `Pembayaran${nominalBayar ? ` ${nominalBayar}` : ''} untuk ${order.company_name} dikonfirmasi. Tim Bandarin segera memproses pengajuan Anda.`,
+        message: `Pembayaran${nominalBayar ? ` ${nominalBayar}` : ''} untuk ${displayTarget} telah dikonfirmasi. Tim Bandarin segera memproses pengajuan Anda.`,
         link: `/client/applications/${order.id}`,
         is_read: false,
       });
@@ -96,19 +121,19 @@ export async function POST(request: Request) {
         await supabaseAdmin.from('notifications').insert({
           user_id: admin.id,
           title: '💰 Pembayaran Masuk!',
-          message: `Klien ${order.company_name} telah membayar${nominalBayar ? ` ${nominalBayar}` : ''}. Segera mulai pengerjaan.`,
+          message: `${clientName} telah membayar${nominalBayar ? ` ${nominalBayar}` : ''} untuk ${displayTarget}. Segera mulai pengerjaan.`,
           link: `/admin/services/orders/${order.id}`,
           is_read: false,
         });
       }
 
-      // Log event ke application_logs (opsional, tidak boleh crash webhook)
+      // Log event ke application_logs
       void supabaseAdmin
         .from('application_logs')
         .insert({
           application_id: order.id,
           status_title: 'Pembayaran Dikonfirmasi',
-          description: `Invoice ${external_id} berhasil dibayar${nominalBayar ? ` sebesar ${nominalBayar}` : ''}. Status berubah ke Proses Pengerjaan.`,
+          description: `Invoice ${external_id} berhasil dibayar${nominalBayar ? ` sebesar ${nominalBayar}` : ''} oleh ${clientName}. Status berubah ke Proses Pengerjaan.`,
           timestamp: new Date().toISOString(),
         })
         .then(() => {}, () => {}); // Fire-and-forget
@@ -124,7 +149,7 @@ export async function POST(request: Request) {
       await supabaseAdmin.from('notifications').insert({
         user_id: order.user_id,
         title: '⏰ Invoice Kadaluarsa',
-        message: `Invoice pembayaran ${order.company_name} telah habis masa berlakunya. Hubungi admin untuk menerbitkan invoice baru.`,
+        message: `Invoice pembayaran untuk ${displayTarget} telah habis masa berlakunya. Hubungi admin untuk menerbitkan invoice baru.`,
         link: `/client/applications/${order.id}`,
         is_read: false,
       });
