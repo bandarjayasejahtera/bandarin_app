@@ -76,6 +76,8 @@ const TIMELINE_STEPS = [
   { id: 'completed', label: 'Selesai', description: 'Layanan tuntas' },
 ];
 
+import { AgentControlPanel } from "@/components/admin/agent-control-panel";
+
 export default function OrderDetailClient({ initialOrder, initialMessages, initialCurrentUserId = "" }: OrderDetailClientProps) {
   const [supabase] = useState(() => createClient());
   const router = useRouter();
@@ -392,9 +394,17 @@ export default function OrderDetailClient({ initialOrder, initialMessages, initi
                 {order.status}
               </Badge>
             </h1>
-            <div className="flex items-center gap-2 text-slate-500 dark:text-slate-400 text-xs sm:text-sm font-medium mt-1">
-              <Clock className="h-3.5 w-3.5 shrink-0" />
-              {format(new Date(order.created_at), "dd MMM yyyy, HH:mm", { locale: idLocale })}
+            <div className="flex flex-wrap items-center gap-x-4 gap-y-1 text-slate-500 dark:text-slate-400 text-xs sm:text-sm font-medium mt-1">
+              <span className="flex items-center gap-1.5">
+                <Clock className="h-3.5 w-3.5 shrink-0" />
+                {format(new Date(order.created_at), "dd MMM yyyy, HH:mm", { locale: idLocale })}
+              </span>
+              {order.services?.name && (
+                <span className="flex items-center gap-1.5 font-semibold text-slate-600 dark:text-slate-300">
+                  <Briefcase className="h-3.5 w-3.5 shrink-0" />
+                  {order.services.name}
+                </span>
+              )}
             </div>
           </div>
         </div>
@@ -478,6 +488,10 @@ export default function OrderDetailClient({ initialOrder, initialMessages, initi
                 </div>
               </div>
               
+              <div className="bg-slate-50 p-3 rounded-xl border border-slate-100 flex flex-col justify-center">
+                <span className="text-[10px] text-slate-400 font-bold uppercase mb-1">Layanan</span>
+                <span className="text-sm font-bold text-slate-700 truncate">{order.services?.name || "—"}</span>
+              </div>
               <div className="grid grid-cols-2 gap-3">
                  <div className="bg-slate-50 p-3 rounded-xl border border-slate-100 flex flex-col justify-center">
                     <span className="text-[10px] text-slate-400 font-bold uppercase mb-1">Telepon</span>
@@ -542,6 +556,12 @@ export default function OrderDetailClient({ initialOrder, initialMessages, initi
                     </div>
                 </CardContent>
             </Card>
+
+            {/* --- AGENT CONTROL PANEL --- */}
+            <AgentControlPanel 
+              applicationId={order.id} 
+              currentAgentId={order.assigned_agent_id} 
+            />
         </div>
 
         {/* --- RIGHT COLUMN: CHAT --- */}

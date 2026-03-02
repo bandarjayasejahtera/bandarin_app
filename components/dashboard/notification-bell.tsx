@@ -13,6 +13,21 @@ import {
 
 const NOTIFICATION_SOUND = "/sounds/bell-ring-notification.wav";
 
+function formatNotificationTime(createdAt: string): string {
+  const date = new Date(createdAt);
+  const now = new Date();
+  const diffMs = now.getTime() - date.getTime();
+  const diffMins = Math.floor(diffMs / 60000);
+  const diffHours = Math.floor(diffMs / 3600000);
+  const diffDays = Math.floor(diffMs / 86400000);
+  if (diffMins < 1) return "Baru saja";
+  if (diffMins < 60) return `${diffMins} menit lalu`;
+  if (diffHours < 24) return `${diffHours} jam lalu`;
+  if (diffDays === 1) return `Kemarin ${date.toLocaleTimeString("id-ID", { hour: "2-digit", minute: "2-digit" })}`;
+  if (diffDays < 7) return `${diffDays} hari lalu`;
+  return date.toLocaleDateString("id-ID", { day: "numeric", month: "short", hour: "2-digit", minute: "2-digit" });
+}
+
 export function NotificationBell({ userId }: { userId: string }) {
   const [notifications, setNotifications] = useState<any[]>([]);
   const [supabase] = useState(() => createClient());
@@ -22,22 +37,27 @@ export function NotificationBell({ userId }: { userId: string }) {
   // Unlock audio on first user interaction (browser policy: autoplay butuh interaksi)
   const unlockAudio = useCallback(() => {
     if (audioUnlockedRef.current) return;
-    if (audioRef.current) {
-      audioRef.current.volume = 1;
-      audioRef.current.currentTime = 0;
-      audioRef.current
-        .play()
-        .then(() => {
-          audioRef.current?.pause();
-          if (audioRef.current) audioRef.current.currentTime = 0;
-        })
-        .catch(() => {});
-      audioUnlockedRef.current = true;
+    const audio = audioRef.current;
+    if (audio) {
+      audio.volume = 1;
+      audio.currentTime = 0;
+      const playPromise = audio.play();
+      if (playPromise !== undefined) {
+        playPromise
+          .then(() => {
+            audio.pause();
+            audio.currentTime = 0;
+            audioUnlockedRef.current = true;
+          })
+          .catch(() => {});
+      }
     }
   }, []);
 
   useEffect(() => {
-    audioRef.current = new Audio(NOTIFICATION_SOUND);
+    const audio = new Audio(NOTIFICATION_SOUND);
+    audio.preload = 'auto'; // Preload agar instant play
+    audioRef.current = audio;
 
     const fetchNotifications = async () => {
       const { data } = await supabase
@@ -73,6 +93,10 @@ export function NotificationBell({ userId }: { userId: string }) {
 
     return () => { 
       supabase.removeChannel(channel); 
+      if (audioRef.current) {
+        audioRef.current.pause();
+        audioRef.current = null;
+      }
     };
   }, [userId, supabase]);
 
@@ -113,17 +137,22 @@ export function NotificationBell({ userId }: { userId: string }) {
               <Link 
                 key={n.id} 
                 href={n.link || "#"} 
-                className="block p-4 border-b border-slate-50 dark:border-zinc-800 hover:bg-slate-50 dark:hover:bg-zinc-800 transition-colors cursor-pointer group"
+                className="block p-4 border-b border-slate-100 dark:border-zinc-800 hover:bg-slate-50 dark:hover:bg-zinc-800/80 transition-colors cursor-pointer group first:border-t-0"
               >
-                <div className="flex justify-between items-start mb-1">
-                  <p className="text-[11px] font-black text-slate-900 dark:text-zinc-100 group-hover:text-blue-600 transition-colors">
+                <div className="flex justify-between items-start gap-2 mb-1.5">
+                  <p className="text-xs font-bold text-slate-900 dark:text-zinc-100 group-hover:text-blue-600 dark:group-hover:text-blue-400 transition-colors line-clamp-2 flex-1 min-w-0">
                     {n.title}
                   </p>
-                  <span className="text-[8px] text-zinc-400 font-bold uppercase tracking-tighter whitespace-nowrap ml-2">
-                    {new Date(n.created_at).toLocaleTimeString([], { hour: '2-digit', minute: '2-digit' })}
+                  <span className="text-[10px] text-slate-400 dark:text-zinc-500 font-medium whitespace-nowrap shrink-0">
+                    {formatNotificationTime(n.created_at)}
                   </span>
                 </div>
-                <p className="text-[10px] text-zinc-500 leading-snug line-clamp-2">{n.message}</p>
+                <p className="text-[11px] text-slate-500 dark:text-zinc-400 leading-relaxed line-clamp-2">{n.message}</p>
+                {n.link && (
+                  <span className="inline-block mt-2 text-[10px] font-semibold text-blue-600 dark:text-blue-400 group-hover:underline">
+                    Lihat detail →
+                  </span>
+                )}
               </Link>
             ))
           )}

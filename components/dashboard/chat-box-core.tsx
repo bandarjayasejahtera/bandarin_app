@@ -100,33 +100,59 @@ export function ChatBoxCore({
   const notificationSoundUrlRef = useRef(notificationSoundUrl);
   const markAsDeliveredRef = useRef<(id: string) => Promise<void>>(async () => {});
 
-  useEffect(() => { notificationSoundUrlRef.current = notificationSoundUrl; }, [notificationSoundUrl]);
+  // 1. Preload Audio saat component mount / URL berubah
+  useEffect(() => { 
+    notificationSoundUrlRef.current = notificationSoundUrl;
+    const audio = new Audio(notificationSoundUrl);
+    audio.preload = 'auto'; // Paksa browser download metadata & data
+    notificationAudioRef.current = audio;
 
+    return () => {
+      audio.pause();
+      notificationAudioRef.current = null;
+    };
+  }, [notificationSoundUrl]);
+
+  // 2. Unlock Audio (User Interaction) - Agar bisa autoplay
   const unlockNotificationAudio = React.useCallback(() => {
     if (audioUnlockedRef.current) return;
-    audioUnlockedRef.current = true;
-    const url = notificationSoundUrlRef.current;
+
+    const audio = notificationAudioRef.current;
+    if (!audio) return;
+
     try {
-      const audio = new Audio(url);
-      notificationAudioRef.current = audio;
-      audio.volume = 0;
-      audio.play().then(() => audio.pause()).catch(() => {});
-      audio.volume = 1;
+      // Pancing browser bahwa user sudah berinteraksi
+      const playPromise = audio.play();
+      
+      if (playPromise !== undefined) {
+        playPromise
+          .then(() => {
+            audio.pause();
+            audio.currentTime = 0;
+            audioUnlockedRef.current = true;
+          })
+          .catch(() => {
+            // Ignore error jika belum boleh play
+          });
+      }
     } catch {}
   }, []);
 
+  // 3. Play Sound (Instant)
   const playNotificationSound = React.useCallback(() => {
-    const url = notificationSoundUrlRef.current;
+    const audio = notificationAudioRef.current;
+    if (!audio) return;
+
     try {
-      if (notificationAudioRef.current) {
-        notificationAudioRef.current.volume = 1;
-        notificationAudioRef.current.currentTime = 0;
-        notificationAudioRef.current.play().catch(() => {});
-        return;
+      audio.currentTime = 0;
+      audio.volume = 1;
+      const playPromise = audio.play();
+      
+      if (playPromise !== undefined) {
+        playPromise.catch((error) => {
+           console.log("Audio playback prevented:", error);
+        });
       }
-      const audio = new Audio(url);
-      audio.volume = 0.8;
-      audio.play().catch(() => {});
     } catch {}
   }, []);
   

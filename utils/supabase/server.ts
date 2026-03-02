@@ -1,6 +1,7 @@
 import { createServerClient } from '@supabase/ssr'
 import { cookies } from 'next/headers'
 
+// Client standar untuk operasi user biasa (mengikuti RLS)
 export async function createClient() {
   const cookieStore = await cookies()
 
@@ -18,11 +19,25 @@ export async function createClient() {
               cookieStore.set(name, value, options)
             )
           } catch {
-            // The `setAll` method was called from a Server Component.
-            // This can be ignored if you have middleware refreshing
-            // user sessions.
+            // Method setAll dipanggil dari Server Component.
+            // Bisa diabaikan jika middleware sudah menangani refresh session.
           }
         },
+      },
+    }
+  )
+}
+
+// Client khusus Admin untuk bypass RLS (Gunakan hanya di Server Actions Admin)
+// Pastikan SUPABASE_SERVICE_ROLE_KEY sudah ada di .env.local
+export async function createAdminClient() {
+  return createServerClient(
+    process.env.NEXT_PUBLIC_SUPABASE_URL!,
+    process.env.SUPABASE_SERVICE_ROLE_KEY!, 
+    {
+      cookies: {
+        getAll() { return [] },
+        setAll() { },
       },
     }
   )
