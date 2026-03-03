@@ -24,6 +24,7 @@ const navItems: NavItem[] = [
   { label: 'Daftar Pesanan', href: '/admin/services/orders', icon: FileText },
   { label: 'Database Klien', href: '/admin/clients', icon: Users },
   { label: 'Agen Instansi', href: '/admin/agents', icon: Users },
+  { label: 'Out Sourcing', href: '/admin/outsrc', icon: Users },
   { label: 'Pengaturan CRM', href: '/admin/settings', icon: Settings },
 ];
 
