@@ -16,6 +16,7 @@ import {
 import Link from 'next/link';
 import { Button } from '@/components/ui/button';
 import { Badge } from '@/components/ui/badge';
+import { KanbanBoard } from './KanbanBoard';
 
 export default async function AdminOrdersPage() {
   const supabase = await createClient();
@@ -43,9 +44,11 @@ export default async function AdminOrdersPage() {
   // Fungsi Helper untuk warna status
   const getStatusStyle = (status: string) => {
     switch (status) {
-      case 'pending': return 'bg-orange-100 text-orange-700 border-orange-200';
-      case 'quoted': return 'bg-blue-100 text-blue-700 border-blue-200';
-      case 'process': return 'bg-purple-100 text-purple-700 border-purple-200';
+      case 'draft': return 'bg-slate-100 text-slate-700 border-slate-200';
+      case 'review': return 'bg-orange-100 text-orange-700 border-orange-200';
+      case 'processed_pupr': return 'bg-blue-100 text-blue-700 border-blue-200';
+      case 'processed_atr_bpn': return 'bg-indigo-100 text-indigo-700 border-indigo-200';
+      case 'processed_oss': return 'bg-purple-100 text-purple-700 border-purple-200';
       case 'completed': return 'bg-green-100 text-green-700 border-green-200';
       default: return 'bg-slate-100 text-slate-700 border-slate-200';
     }
@@ -64,13 +67,16 @@ export default async function AdminOrdersPage() {
       <div className="grid grid-cols-1 md:grid-cols-4 gap-4">
         <div className="bg-white p-4 rounded-xl border border-slate-200 shadow-sm">
           <p className="text-xs font-bold text-slate-400 uppercase">Perlu Review</p>
-          <p className="text-2xl font-black text-orange-600">{safeOrders.filter(o => o.status === 'pending').length}</p>
+          <p className="text-2xl font-black text-orange-600">{safeOrders.filter(o => o.status === 'review' || o.status === 'draft').length}</p>
         </div>
         <div className="bg-white p-4 rounded-xl border border-slate-200 shadow-sm">
           <p className="text-xs font-bold text-slate-400 uppercase">Dalam Proses</p>
-          <p className="text-2xl font-black text-purple-600">{safeOrders.filter(o => o.status === 'process').length}</p>
+          <p className="text-2xl font-black text-purple-600">{safeOrders.filter(o => ['processed_pupr', 'processed_atr_bpn', 'processed_oss'].includes(o.status)).length}</p>
         </div>
       </div>
+
+      {/* Kanban Board */}
+      <KanbanBoard initialOrders={safeOrders} />
 
       {/* Tabel Pesanan */}
       <div className="bg-white rounded-2xl border border-slate-200 shadow-sm overflow-hidden">

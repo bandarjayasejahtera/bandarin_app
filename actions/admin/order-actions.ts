@@ -85,3 +85,20 @@ export async function updateOrderStatusAction(
   
   return { success: true };
 }
+
+export async function updateOrderKanbanStatusAction(orderId: string, nextStatus: string) {
+  const supabase = await createClient();
+  const { data: { user } } = await supabase.auth.getUser();
+  if (!user) return { error: "Unauthorized" };
+
+  const { error } = await supabase
+    .from("applications")
+    .update({ status: nextStatus, updated_at: new Date().toISOString() })
+    .eq("id", orderId);
+
+  if (error) return { error: error.message };
+
+  revalidatePath("/admin/services/orders");
+  revalidatePath(`/admin/services/orders/${orderId}`);
+  return { success: true };
+}

@@ -24,6 +24,8 @@ import { id as idLocale } from 'date-fns/locale';
 import { cn } from '@/lib/applicationSchema/utils';
 import { PaymentStatusBanner } from '@/components/payment/payment-status-banner';
 import { PaymentSuccessToast } from '@/components/payment/payment-success-toast';
+import { MilestoneInvoicesCard } from '@/components/payment/milestone-invoices-card';
+import { getMilestoneInvoices } from '@/actions/milestone-invoice-actions';
 
 // Definisi Tahapan Timeline
 const TIMELINE_STEPS = [
@@ -69,9 +71,10 @@ export default async function UserApplicationDetailPage({ params, searchParams }
     .eq('application_id', id)
     .order('created_at', { ascending: true });
 
-  // PENGHAPUSAN: Kita telah menghapus pemanggilan markMessagesAsReadAction di sini.
-  // Eksekusinya sekarang murni diserahkan ke komponen ChatBoxCore (via useEffect) 
-  // agar tidak menyalahi aturan Rendering Next.js.
+  // PERBAIKAN: Klien HANYA membaca milestone yang telah dibuat oleh Admin (via Slider/Quotation)
+  // Tidak ada lagi ensureMilestoneInvoices di sini agar persentase tidak tertimpa/ambigu.
+  const milestoneResult = await getMilestoneInvoices(id);
+  const milestoneInvoices = milestoneResult?.invoices || [];
 
   const currentStepIndex = TIMELINE_STEPS.findIndex((s) => s.id === app.status);
   const isCancelled = app.status === 'cancelled';
@@ -166,6 +169,14 @@ export default async function UserApplicationDetailPage({ params, searchParams }
               isAdmin={false}
             />
           )}
+
+          <MilestoneInvoicesCard
+            orderId={id}
+            clientName={app.company_name || "Klien"}
+            serviceName={app.services?.name || "Layanan Bandarin"}
+            total={Number(app.quoted_price) || 0}
+            initialInvoices={milestoneInvoices as any}
+          />
 
           {/* PROGRESS TIMELINE */}
           <Card className="rounded-[2.5rem] p-8 md:p-10 shadow-sm border-slate-100">

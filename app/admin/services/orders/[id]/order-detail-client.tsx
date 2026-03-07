@@ -1,15 +1,16 @@
 // app/admin/services/orders/[id]/order-detail-client.tsx
 "use client";
 
-import { useState, useEffect } from "react";
+import { useState, useEffect, useCallback, useMemo } from "react";
 import { createClient } from "@/utils/supabase/client";
 import { useRouter } from "next/navigation";
-import { 
-  ArrowLeft, CheckCircle2, AlertCircle, 
-  User, Phone, DollarSign, Briefcase, 
+import {
+  ArrowLeft, CheckCircle2,
+  User, Phone, DollarSign, Briefcase,
   MoreVertical, Clock, ShieldCheck,
-  Check, Circle, XCircle, Edit2, SendHorizontal, 
-  Receipt, Play, FileText, Loader2, UploadCloud // <-- UploadCloud sudah ditambahkan
+  Check, Circle, XCircle, SendHorizontal,
+  Receipt, FileText, Loader2, UploadCloud, Edit2,
+  ChevronRight, Zap, Building2, BadgeCheck, Sparkles,
 } from "lucide-react";
 
 // UI Components
@@ -24,6 +25,7 @@ import {
   DropdownMenu,
   DropdownMenuContent,
   DropdownMenuItem,
+  DropdownMenuSeparator,
   DropdownMenuTrigger,
 } from "@/components/ui/dropdown-menu";
 import {
@@ -34,6 +36,7 @@ import {
   DialogHeader,
   DialogTitle,
 } from "@/components/ui/dialog";
+import { Slider } from "@/components/ui/slider";
 
 // Utils
 import { toast } from "sonner";
@@ -43,15 +46,40 @@ import { id as idLocale } from "date-fns/locale";
 import { cn } from "@/lib/applicationSchema/utils";
 import { updateOrderStatusAction } from "@/actions/admin/order-actions";
 
+// Sub-Components & Actions
+import { AgentControlPanel } from "@/components/admin/agent-control-panel";
+import { DocumentChecklist } from "@/components/admin/document-checklist";
+import { AdminMilestoneInvoices } from "@/components/admin/admin-milestone-invoices";
+import { ensureMilestoneInvoices, getMilestoneInvoices } from "@/actions/milestone-invoice-actions";
+
+// ============================================================================
+// TYPES
+// ============================================================================
 type OrderType = any;
 type MessageType = any;
 
+interface OrderDetailClientProps {
+  initialOrder: OrderType;
+  initialMessages: MessageType[];
+  initialCurrentUserId?: string;
+}
+
+// ============================================================================
+// UTILITIES
+// ============================================================================
 function formatRupiah(value: number): string {
-  return new Intl.NumberFormat("id-ID", { style: "currency", currency: "IDR", minimumFractionDigits: 0 }).format(value);
+  return new Intl.NumberFormat("id-ID", {
+    style: "currency",
+    currency: "IDR",
+    minimumFractionDigits: 0,
+  }).format(value);
 }
 
 function formatPriceWithCommas(value: number | string | null | undefined): string {
-  const n = typeof value === "string" ? parseInt(value.replace(/\D/g, ""), 10) || 0 : Number(value) || 0;
+  const n =
+    typeof value === "string"
+      ? parseInt(value.replace(/\D/g, ""), 10) || 0
+      : Number(value) || 0;
   return n.toLocaleString("id-ID");
 }
 
@@ -60,25 +88,167 @@ function parsePriceFromCommas(str: string): string {
   return digits === "" ? "" : String(parseInt(digits, 10));
 }
 
-interface OrderDetailClientProps {
-  initialOrder: OrderType;
-  initialMessages: MessageType[];
-  initialCurrentUserId?: string;
-}
+// ============================================================================
+// DESIGN TOKENS – satu sumber kebenaran untuk warna & gaya
+// ============================================================================
+const RADIUS = "rounded-2xl";
+const CARD_BASE =
+  "border border-slate-200/80 dark:border-slate-800 bg-white dark:bg-slate-900 shadow-[0_1px_3px_rgba(0,0,0,.04)]";
 
-// Definisi Tahapan Timeline
-const TIMELINE_STEPS = [
-  { id: 'pending', label: 'Pesanan Masuk', description: 'Menunggu review admin' },
-  { id: 'quoted', label: 'Menunggu Pembayaran', description: 'Penawaran harga telah dikirim' },
-  { id: 'paid', label: 'Pembayaran Berhasil', description: 'Dana telah diterima oleh sistem' },
-  { id: 'process', label: 'Sedang Diproses', description: 'Pengerjaan sedang berlangsung' },
-  { id: 'review', label: 'Review Dokumen', description: 'Validasi hasil akhir' },
-  { id: 'completed', label: 'Selesai', description: 'Layanan tuntas' },
+const STATUS_THEME: Record<
+  string,
+  { bg: string; text: string; ring: string; accent: string; icon: string }
+> = {
+  draft: {
+    bg: "bg-slate-50",
+    text: "text-slate-600",
+    ring: "ring-slate-200",
+    accent: "bg-slate-500",
+    icon: "text-slate-500",
+  },
+  verification: {
+    bg: "bg-amber-50",
+    text: "text-amber-700",
+    ring: "ring-amber-200",
+    accent: "bg-amber-500",
+    icon: "text-amber-500",
+  },
+  payment: {
+    bg: "bg-violet-50",
+    text: "text-violet-700",
+    ring: "ring-violet-200",
+    accent: "bg-violet-500",
+    icon: "text-violet-500",
+  },
+  processing: {
+    bg: "bg-sky-50",
+    text: "text-sky-700",
+    ring: "ring-sky-200",
+    accent: "bg-sky-500",
+    icon: "text-sky-500",
+  },
+  final_review: {
+    bg: "bg-indigo-50",
+    text: "text-indigo-700",
+    ring: "ring-indigo-200",
+    accent: "bg-indigo-500",
+    icon: "text-indigo-500",
+  },
+  completed: {
+    bg: "bg-emerald-50",
+    text: "text-emerald-700",
+    ring: "ring-emerald-200",
+    accent: "bg-emerald-500",
+    icon: "text-emerald-500",
+  },
+  cancelled: {
+    bg: "bg-red-50",
+    text: "text-red-600",
+    ring: "ring-red-200",
+    accent: "bg-red-500",
+    icon: "text-red-500",
+  },
+};
+
+const CONSULTANT_STEPS = [
+  { id: "draft", label: "Incoming", description: "Data awal klien", icon: FileText },
+  { id: "verification", label: "Verifikasi Berkas", description: "Cek kelengkapan dokumen", icon: BadgeCheck },
+  { id: "payment", label: "Pembayaran", description: "Menunggu DP / Termin", icon: DollarSign },
+  { id: "processing", label: "Proses Instansi", description: "Pengerjaan di dinas", icon: Building2 },
+  { id: "final_review", label: "Final Review", description: "Validasi hasil akhir", icon: ShieldCheck },
+  { id: "completed", label: "Selesai", description: "Serah terima ke klien", icon: CheckCircle2 },
 ];
 
-import { AgentControlPanel } from "@/components/admin/agent-control-panel";
+function getTheme(status: string) {
+  return STATUS_THEME[status] ?? STATUS_THEME.draft;
+}
 
-export default function OrderDetailClient({ initialOrder, initialMessages, initialCurrentUserId = "" }: OrderDetailClientProps) {
+// ============================================================================
+// SMALL REUSABLE PIECES
+// ============================================================================
+
+/** Pill badge yang konsisten untuk status */
+function StatusBadge({ status }: { status: string }) {
+  const t = getTheme(status);
+  return (
+    <span
+      className={cn(
+        "inline-flex items-center gap-1.5 px-2.5 py-1 text-[11px] font-bold uppercase tracking-wider rounded-lg ring-1",
+        t.bg,
+        t.text,
+        t.ring,
+      )}
+    >
+      <span className={cn("h-1.5 w-1.5 rounded-full", t.accent)} />
+      {status.replace("_", " ")}
+    </span>
+  );
+}
+
+/** Tombol aksi utama – warna mengikuti status */
+function PrimaryActionButton({
+  onClick,
+  loading,
+  label,
+  icon: Icon,
+  colorClass = "bg-sky-600 hover:bg-sky-700 shadow-sky-200/60",
+}: {
+  onClick: () => void;
+  loading: boolean;
+  label: string;
+  icon: React.ElementType;
+  colorClass?: string;
+}) {
+  return (
+    <Button
+      disabled={loading}
+      onClick={onClick}
+      className={cn(
+        "w-full h-[52px] text-sm font-extrabold text-white rounded-xl shadow-lg",
+        "active:scale-[.97] transition-all duration-150",
+        colorClass,
+      )}
+    >
+      {loading ? (
+        <Loader2 className="animate-spin h-5 w-5" />
+      ) : (
+        <>
+          <Icon className="mr-2 h-[18px] w-[18px]" />
+          {label}
+        </>
+      )}
+    </Button>
+  );
+}
+
+/** Info box kecil, warna netral atau status-based */
+function InfoBanner({
+  children,
+  variant = "default",
+}: {
+  children: React.ReactNode;
+  variant?: "default" | "warning" | "success";
+}) {
+  const styles = {
+    default: "bg-slate-50 border-slate-200/80 text-slate-700",
+    warning: "bg-amber-50/80 border-amber-200/60 text-amber-800",
+    success: "bg-emerald-50 border-emerald-200 text-emerald-800",
+  };
+  return (
+    <div className={cn("rounded-xl border p-3.5 text-xs leading-relaxed font-medium", styles[variant])}>
+      {children}
+    </div>
+  );
+}
+
+// ============================================================================
+// MAIN COMPONENT
+// ============================================================================
+export default function OrderDetailClient({
+  initialOrder,
+  initialMessages,
+  initialCurrentUserId = "",
+}: OrderDetailClientProps) {
   const [supabase] = useState(() => createClient());
   const router = useRouter();
   const [currentUserId, setCurrentUserId] = useState<string>(initialCurrentUserId);
@@ -87,26 +257,43 @@ export default function OrderDetailClient({ initialOrder, initialMessages, initi
   const [isUpdating, setIsUpdating] = useState(false);
   const [isConnected, setIsConnected] = useState(false);
   const [clientIsTyping, setClientIsTyping] = useState(false);
-  
-  // State untuk Pop-up Quotation
-  const [priceEditValue, setPriceEditValue] = useState("");
-  const [isQuotationModalOpen, setIsQuotationModalOpen] = useState(false);
 
-  // --- STATE BARU: Untuk Modal Selesaikan Pesanan & Upload ---
+  // ── State Keuangan ──
+  const [isEditingContract, setIsEditingContract] = useState(
+    !initialOrder.quoted_price || initialOrder.quoted_price <= 0,
+  );
+  const [priceEditValue, setPriceEditValue] = useState(
+    initialOrder.quoted_price ? formatPriceWithCommas(initialOrder.quoted_price) : "",
+  );
+  const [dpPercentage, setDpPercentage] = useState<number>(50);
+  const [milestones, setMilestones] = useState<any[]>([]);
+
+  // ── State Sub-Status & Upload Modal ──
+  const [subStatus, setSubStatus] = useState<string>(order.sub_status || "");
   const [isCompleteModalOpen, setIsCompleteModalOpen] = useState(false);
   const [finalDocument, setFinalDocument] = useState<File | null>(null);
 
+  // ── Derived ──
+  const theme = useMemo(() => getTheme(order.status), [order.status]);
+  const currentStepIndex = CONSULTANT_STEPS.findIndex((s) => s.id === order.status);
+  const isCancelled = order.status === "cancelled";
+  const isTerminal = order.status === "completed" || isCancelled;
+
+  // ── Auth & milestones init ──
   useEffect(() => {
     if (initialCurrentUserId) {
       setCurrentUserId(initialCurrentUserId);
-      return;
+    } else {
+      supabase.auth.getUser().then(({ data: { user } }) => {
+        if (user) setCurrentUserId(user.id);
+      });
     }
-    supabase.auth.getUser().then(({ data: { user } }) => {
-      if (user) setCurrentUserId(user.id);
+    getMilestoneInvoices(order.id).then((res) => {
+      if (res.success) setMilestones(res.invoices);
     });
-  }, [supabase, initialCurrentUserId]);
+  }, [supabase, initialCurrentUserId, order.id]);
 
-  // Realtime: only order updates
+  // ── Realtime subscription ──
   useEffect(() => {
     const channel = supabase
       .channel(`order-room-${order.id}`)
@@ -118,577 +305,727 @@ export default function OrderDetailClient({ initialOrder, initialMessages, initi
           table: "applications",
           filter: `id=eq.${order.id}`,
         },
-        (payload) => {
-          setOrder((prev: any) => ({ ...prev, ...payload.new }));
-          toast.info("Status pesanan diperbarui otomatis.");
-        }
+        (payload) => setOrder((prev: any) => ({ ...prev, ...payload.new })),
       )
       .subscribe((status) => {
-        if (status === "SUBSCRIBED") setIsConnected(true);
-        if (status === "CHANNEL_ERROR") {
-          setIsConnected(false);
-          toast.error("Gagal terhubung ke Live Chat.");
-        }
+        setIsConnected(status === "SUBSCRIBED");
       });
     return () => {
       supabase.removeChannel(channel);
     };
   }, [order.id, supabase]);
 
-  // --- SMART ACTION HANDLER ---
-  const handleNextAction = async (nextStatus: string) => {
-    if (nextStatus === 'quoted') {
-      setPriceEditValue(formatPriceWithCommas(order.quoted_price || 0));
-      setIsQuotationModalOpen(true);
-      return;
-    }
+  // ════════════════════════════════════════════════════════════════════
+  // HANDLERS
+  // ════════════════════════════════════════════════════════════════════
 
-    setIsUpdating(true);
-    const previousStatus = order.status;
-    setOrder((prev: any) => ({ ...prev, status: nextStatus }));
+  const handleNextAction = useCallback(
+    async (nextStatus: string) => {
+      if (nextStatus === "payment" && (!order.quoted_price || order.quoted_price <= 0)) {
+        toast.error("Atur & simpan Nilai Kontrak terlebih dahulu di panel kanan.");
+        setIsEditingContract(true);
+        return;
+      }
+      if (nextStatus === "processing") {
+        const dpInvoice = milestones.find(
+          (m) => m.milestone_key === "dp" || m.percentage >= 50,
+        );
+        if (dpInvoice && dpInvoice.status !== "paid") {
+          toast.error("Pastikan DP sudah dilunasi klien sebelum memproses.");
+          return;
+        }
+      }
+      setIsUpdating(true);
+      const previousStatus = order.status;
+      setOrder((prev: any) => ({ ...prev, status: nextStatus }));
 
-    const { error } = await supabase
-      .from("applications")
-      .update({ status: nextStatus })
-      .eq("id", order.id);
-
-    if (error) {
-      setOrder((prev: any) => ({ ...prev, status: previousStatus }));
-      toast.error("Gagal update status");
-    } else {
-      toast.success(`Pesanan dilanjutkan ke tahap berikutnya.`);
-      router.refresh(); 
-    }
-    setIsUpdating(false);
-  };
-
-  const handleQuotationSubmit = async () => {
-    const cleanPrice = parsePriceFromCommas(priceEditValue);
-    const numericPrice = parseInt(cleanPrice, 10);
-
-    if (!numericPrice || numericPrice <= 0 || isNaN(numericPrice)) {
-      toast.error("Masukkan nominal harga yang valid!");
-      return;
-    }
-
-    setIsUpdating(true);
-
-    try {
-      const result = await updateOrderStatusAction(order.id, { 
-        quoted_price: numericPrice, 
-        status: 'quoted'
-      });
-
-      if (result.error) {
-        toast.error(`Gagal mengirim penawaran: ${result.error}`);
+      const { error } = await supabase
+        .from("applications")
+        .update({ status: nextStatus })
+        .eq("id", order.id);
+      if (error) {
+        setOrder((prev: any) => ({ ...prev, status: previousStatus }));
+        toast.error("Gagal update status.");
       } else {
-        setIsQuotationModalOpen(false);
-        setOrder((prev: any) => ({ 
-            ...prev, 
-            quoted_price: numericPrice, 
-            status: "quoted" 
-        }));
-        toast.success("Penawaran Harga Berhasil Dikirim!");
+        toast.success("Status berhasil diperbarui.");
         router.refresh();
       }
-    } catch (err) {
-      toast.error("Terjadi kesalahan pada sistem.");
-    } finally {
       setIsUpdating(false);
-    }
-  };
+    },
+    [order, milestones, supabase, router],
+  );
 
-  // --- HANDLER BARU: Upload Dokumen Final & Selesai ---
-  const handleCompleteSubmit = async () => {
-    if (!finalDocument) {
-      toast.error("Harap unggah dokumen hasil terlebih dahulu!");
+  const handleSavePriceAndMilestone = useCallback(async () => {
+    const cleanPrice = parsePriceFromCommas(priceEditValue);
+    const numericPrice = parseInt(cleanPrice, 10);
+    if (!numericPrice || numericPrice <= 0 || isNaN(numericPrice)) {
+      toast.error("Masukkan nominal harga yang valid.");
       return;
     }
-
     setIsUpdating(true);
-
     try {
-      // 1. Upload File ke Supabase Storage (Asumsi bucket bernama 'documents')
-      const fileExt = finalDocument.name.split('.').pop();
-      const fileName = `final_doc_order_${order.id}_${Date.now()}.${fileExt}`;
-      
-      const { data: uploadData, error: uploadError } = await supabase.storage
-        .from('documents')
-        .upload(fileName, finalDocument);
+      const result = await updateOrderStatusAction(order.id, {
+        quoted_price: numericPrice,
+      });
+      if (result.error) throw new Error(result.error);
 
-      if (uploadError) throw uploadError;
+      const milestoneRes = await ensureMilestoneInvoices(
+        order.id,
+        numericPrice,
+        dpPercentage,
+      );
+      if (!milestoneRes.success) throw new Error(milestoneRes.error);
 
-      // 2. Dapatkan URL Publik dari dokumen yang diunggah
-      const { data: publicUrlData } = supabase.storage
-        .from('documents')
-        .getPublicUrl(fileName);
+      setOrder((prev: any) => ({ ...prev, quoted_price: numericPrice }));
+      setIsEditingContract(false);
 
-      const documentUrl = publicUrlData.publicUrl;
+      const res = await getMilestoneInvoices(order.id);
+      if (res.success) setMilestones(res.invoices);
 
-      // 3. Update Database: Ubah status & simpan link dokumen
-      const { error: updateError } = await supabase
-        .from("applications")
-        .update({ 
-           status: 'completed',
-           final_document_url: documentUrl
-        })
-        .eq("id", order.id);
-
-      if (updateError) throw updateError;
-
-      // 4. Sukses: Tutup modal & update UI
-      setIsCompleteModalOpen(false);
-      setOrder((prev: any) => ({ 
-          ...prev, 
-          status: "completed",
-          final_document_url: documentUrl 
-      }));
-      toast.success("Pesanan Selesai & Dokumen Berhasil Diunggah!");
+      toast.success("Kontrak disimpan & invoice termin dibuat.");
       router.refresh();
-
     } catch (err: any) {
-      console.error(err);
-      toast.error("Gagal menyelesaikan pesanan. Cek koneksi & storage.");
+      toast.error(err.message || "Terjadi kesalahan.");
     } finally {
       setIsUpdating(false);
     }
-  };
+  }, [priceEditValue, dpPercentage, order.id, router]);
 
-  // --- HELPER UI ---
-  const getStatusColor = (status: string) => {
-    switch (status) {
-      case 'pending': return 'bg-yellow-100 text-yellow-700 border-yellow-200';
-      case 'quoted': return 'bg-purple-100 text-purple-700 border-purple-200';
-      case 'paid': return 'bg-emerald-100 text-emerald-700 border-emerald-200';
-      case 'process': return 'bg-blue-100 text-blue-700 border-blue-200';
-      case 'review': return 'bg-indigo-100 text-indigo-700 border-indigo-200';
-      case 'completed': return 'bg-green-100 text-green-700 border-green-200';
-      case 'cancelled': return 'bg-red-100 text-red-700 border-red-200';
-      default: return 'bg-slate-100 text-slate-700 border-slate-200';
+  const handleCompleteSubmit = useCallback(async () => {
+    if (!finalDocument) {
+      toast.error("Unggah dokumen hasil terlebih dahulu.");
+      return;
     }
-  };
+    setIsUpdating(true);
+    try {
+      const fileExt = finalDocument.name.split(".").pop();
+      const fileName = `final_doc_order_${order.id}_${Date.now()}.${fileExt}`;
+      const { error: uploadError } = await supabase.storage
+        .from("documents")
+        .upload(fileName, finalDocument);
+      if (uploadError) throw uploadError;
 
-  const getCurrentStepIndex = (status: string) => {
-    return TIMELINE_STEPS.findIndex(s => s.id === status);
-  };
-  
-  const currentStepIndex = getCurrentStepIndex(order.status);
-  const isCancelled = order.status === 'cancelled';
+      const { data: publicUrlData } = supabase.storage
+        .from("documents")
+        .getPublicUrl(fileName);
+      const documentUrl = publicUrlData.publicUrl;
 
-  // --- RENDER SMART ACTION PANEL ---
-  const renderSmartAction = () => {
-    switch(order.status) {
-      case 'pending':
-        return (
-          <Button 
-            disabled={isUpdating}
-            onClick={() => handleNextAction('quoted')}
-            className="w-full h-14 text-base font-black bg-blue-600 hover:bg-blue-700 text-white rounded-2xl shadow-[0_8px_30px_rgb(37,99,235,0.2)] hover:shadow-[0_8px_30px_rgb(37,99,235,0.4)] transition-all active:scale-95 group"
-          >
-            {isUpdating ? <Loader2 className="animate-spin h-5 w-5" /> : (
-              <><DollarSign className="mr-2 h-5 w-5 group-hover:scale-110 transition-transform" /> BUAT PENAWARAN HARGA</>
-            )}
-          </Button>
-        );
-      case 'quoted':
-        return (
-          <div className="space-y-3">
-            <div className="bg-amber-50/80 border border-amber-200/60 rounded-2xl p-4 flex items-start gap-3">
-                <Clock className="h-5 w-5 text-amber-500 shrink-0 mt-0.5 animate-pulse" />
-                <div className="flex-1">
-                  <p className="text-sm font-bold text-amber-800">Menunggu Pembayaran Klien</p>
-                  <p className="text-xs text-amber-700/80 mt-1 leading-relaxed">Sistem otomatis lanjut ke <strong className="font-bold">Proses Pengerjaan</strong> saat webhook Xendit menerima dana.</p>
-                </div>
-            </div>
-            {/* Opsi Bypass Manual */}
-            <Button 
-              variant="outline" 
-              disabled={isUpdating}
-              onClick={() => handleNextAction('paid')}
-              className="w-full h-12 rounded-xl border-dashed border-2 border-slate-300 text-slate-500 hover:text-emerald-600 hover:border-emerald-400 hover:bg-emerald-50 transition-all font-bold"
-            >
-               Tandai Lunas Manual
-            </Button>
-          </div>
-        );
-      case 'paid':
-        return (
-          <Button 
-            disabled={isUpdating}
-            onClick={() => handleNextAction('process')}
-            className="w-full h-14 text-base font-black bg-indigo-600 hover:bg-indigo-700 text-white rounded-2xl shadow-[0_8px_30px_rgb(79,70,229,0.2)] hover:shadow-[0_8px_30px_rgb(79,70,229,0.4)] transition-all active:scale-95 group"
-          >
-            {isUpdating ? <Loader2 className="animate-spin h-5 w-5" /> : (
-              <><Play className="mr-2 h-5 w-5 fill-current group-hover:scale-110 transition-transform" /> MULAI PENGERJAAN</>
-            )}
-          </Button>
-        );
-      case 'process':
-        return (
-          <Button 
-            disabled={isUpdating}
-            onClick={() => handleNextAction('review')}
-            className="w-full h-14 text-base font-black bg-purple-600 hover:bg-purple-700 text-white rounded-2xl shadow-[0_8px_30px_rgb(147,51,234,0.2)] hover:shadow-[0_8px_30px_rgb(147,51,234,0.4)] transition-all active:scale-95 group"
-          >
-            {isUpdating ? <Loader2 className="animate-spin h-5 w-5" /> : (
-              <><FileText className="mr-2 h-5 w-5 group-hover:scale-110 transition-transform" /> KIRIM UNTUK REVIEW</>
-            )}
-          </Button>
-        );
-      case 'review':
-        return (
-          <Button 
-            disabled={isUpdating}
-            onClick={() => setIsCompleteModalOpen(true)} // <-- Tombol memanggil Modal Upload
-            className="w-full h-14 text-base font-black bg-emerald-600 hover:bg-emerald-700 text-white rounded-2xl shadow-[0_8px_30px_rgb(16,185,129,0.2)] hover:shadow-[0_8px_30px_rgb(16,185,129,0.4)] transition-all active:scale-95 group"
-          >
-             {isUpdating ? <Loader2 className="animate-spin h-5 w-5" /> : (
-              <><CheckCircle2 className="mr-2 h-6 w-6 group-hover:scale-110 transition-transform" /> SELESAIKAN PESANAN</>
-             )}
-          </Button>
-        );
-      case 'completed':
-        return (
-          <div className="bg-emerald-50 border border-emerald-200 rounded-2xl p-5 flex flex-col items-center justify-center text-center gap-3">
-            <ShieldCheck className="h-10 w-10 text-emerald-500 mb-1" />
-            <div className="space-y-1">
-              <h4 className="font-black text-emerald-800 text-lg">Pesanan Telah Selesai</h4>
-              <p className="text-sm font-medium text-emerald-600/80">Dokumen telah diserahkan ke klien.</p>
-            </div>
-            {/* Link Download Dokumen di Admin */}
-            {order.final_document_url && (
-              <a href={order.final_document_url} target="_blank" rel="noopener noreferrer" className="mt-2 w-full">
-                <Button variant="outline" className="w-full bg-white border-emerald-200 text-emerald-700 hover:bg-emerald-100">
-                  <FileText className="mr-2 h-4 w-4" /> Lihat Dokumen
-                </Button>
-              </a>
-            )}
-          </div>
-        );
-      case 'cancelled':
-        return (
-          <div className="bg-red-50 border border-red-200 rounded-2xl p-5 flex flex-col items-center justify-center text-center gap-2">
-            <XCircle className="h-10 w-10 text-red-500 mb-1" />
-            <span className="font-black text-red-800 text-lg">Pesanan Dibatalkan</span>
-            <span className="text-sm font-medium text-red-600/80">Proses untuk pesanan ini telah dihentikan.</span>
-          </div>
-        );
-      default: return null;
+      const { error: updateError } = await supabase
+        .from("applications")
+        .update({ status: "completed", final_document_url: documentUrl })
+        .eq("id", order.id);
+      if (updateError) throw updateError;
+
+      setIsCompleteModalOpen(false);
+      setOrder((prev: any) => ({
+        ...prev,
+        status: "completed",
+        final_document_url: documentUrl,
+      }));
+      toast.success("Pesanan selesai & dokumen berhasil diunggah.");
+      router.refresh();
+    } catch {
+      toast.error("Gagal menyelesaikan pesanan.");
+    } finally {
+      setIsUpdating(false);
     }
-  };
+  }, [finalDocument, order.id, supabase, router]);
 
+  // ════════════════════════════════════════════════════════════════════
+  // RENDER
+  // ════════════════════════════════════════════════════════════════════
   return (
-    <div className="space-y-6 pb-8">
-      {/* --- HEADER --- */}
-      <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-4">
-        <div className="flex items-center gap-3 min-w-0">
+    <div className="space-y-6 pb-10">
+      {/* ── HEADER ─────────────────────────────────────────────── */}
+      <header className="flex flex-col sm:flex-row sm:items-center justify-between gap-4">
+        <div className="flex items-center gap-3.5 min-w-0">
           <Link href="/admin/services/orders">
-            <Button variant="outline" size="icon" className="rounded-xl h-10 w-10 shrink-0 bg-white border-slate-200 shadow-sm hover:bg-slate-50 hover:border-slate-300 transition-all">
-              <ArrowLeft className="h-4 w-4 text-slate-700" />
+            <Button
+              variant="ghost"
+              size="icon"
+              className="h-10 w-10 rounded-xl border border-slate-200/80 bg-white hover:bg-slate-50 shadow-sm transition-all"
+            >
+              <ArrowLeft className="h-4 w-4 text-slate-600" />
             </Button>
           </Link>
+
           <div className="min-w-0">
-            <h1 className="text-xl sm:text-2xl font-black text-slate-900 dark:text-white tracking-tight truncate flex items-center gap-3">
-              Order #{order.id.slice(0, 8).toUpperCase()}
-              <Badge variant="outline" className={cn("capitalize font-bold text-xs py-0.5 border-2", getStatusColor(order.status))}>
-                {order.status}
-              </Badge>
-            </h1>
-            <div className="flex flex-wrap items-center gap-x-4 gap-y-1 text-slate-500 dark:text-slate-400 text-xs sm:text-sm font-medium mt-1">
-              <span className="flex items-center gap-1.5">
-                <Clock className="h-3.5 w-3.5 shrink-0" />
-                {format(new Date(order.created_at), "dd MMM yyyy, HH:mm", { locale: idLocale })}
+            <div className="flex items-center gap-3">
+              <h1 className="text-xl sm:text-2xl font-extrabold text-slate-900 dark:text-white tracking-tight truncate">
+                Order #{order.id.slice(0, 8).toUpperCase()}
+              </h1>
+              <StatusBadge status={order.status} />
+            </div>
+
+            <div className="flex flex-wrap items-center gap-x-4 gap-y-1 mt-1 text-xs text-slate-500 font-medium">
+              <span className="inline-flex items-center gap-1.5">
+                <Clock className="h-3.5 w-3.5" />
+                {format(new Date(order.created_at), "dd MMM yyyy, HH:mm", {
+                  locale: idLocale,
+                })}
               </span>
               {order.services?.name && (
-                <span className="flex items-center gap-1.5 font-semibold text-slate-600 dark:text-slate-300">
-                  <Briefcase className="h-3.5 w-3.5 shrink-0" />
+                <span className="inline-flex items-center gap-1.5 text-slate-600 font-semibold">
+                  <Briefcase className="h-3.5 w-3.5" />
                   {order.services.name}
                 </span>
               )}
             </div>
           </div>
         </div>
-        <div className="flex items-center gap-2 shrink-0">
-          <span className={cn(
-            "flex items-center gap-1.5 px-3 py-1.5 rounded-full text-xs font-bold border",
-            isConnected
-              ? "bg-emerald-50 text-emerald-700 border-emerald-200"
-              : "bg-amber-50 text-amber-700 border-amber-200"
-          )}>
-            <span className={cn("relative flex h-2 w-2", isConnected && "animate-pulse")}>
-              <span className={cn("inline-flex rounded-full h-2 w-2", isConnected ? "bg-emerald-500" : "bg-amber-500")} />
+
+        <div className="flex items-center gap-2.5 shrink-0">
+          {/* Live indicator */}
+          <span
+            className={cn(
+              "inline-flex items-center gap-1.5 px-3 py-1.5 rounded-full text-[11px] font-bold ring-1 transition-colors",
+              isConnected
+                ? "bg-emerald-50 text-emerald-700 ring-emerald-200"
+                : "bg-amber-50 text-amber-700 ring-amber-200",
+            )}
+          >
+            <span className="relative flex h-2 w-2">
+              {isConnected && (
+                <span className="absolute inline-flex h-full w-full rounded-full bg-emerald-400 opacity-75 animate-ping" />
+              )}
+              <span
+                className={cn(
+                  "relative inline-flex rounded-full h-2 w-2",
+                  isConnected ? "bg-emerald-500" : "bg-amber-500",
+                )}
+              />
             </span>
             {isConnected ? "Live" : "Connecting…"}
           </span>
+
           <DropdownMenu>
             <DropdownMenuTrigger asChild>
-              <Button variant="outline" size="icon" className="rounded-xl h-10 w-10 border-slate-200">
-                <MoreVertical className="h-4 w-4" />
+              <Button
+                variant="ghost"
+                size="icon"
+                className="h-10 w-10 rounded-xl border border-slate-200/80 bg-white shadow-sm"
+              >
+                <MoreVertical className="h-4 w-4 text-slate-500" />
               </Button>
             </DropdownMenuTrigger>
-            <DropdownMenuContent align="end" className="w-48 rounded-2xl">
-              <DropdownMenuItem className="font-medium">Cetak Invoice</DropdownMenuItem>
-              <DropdownMenuItem 
-                 className="text-red-600 focus:text-red-600 font-bold focus:bg-red-50"
-                 onClick={() => handleNextAction('cancelled')}
+            <DropdownMenuContent align="end" className="w-52 rounded-xl p-1.5">
+              <DropdownMenuItem className="rounded-lg font-medium text-sm py-2.5 px-3">
+                <FileText className="mr-2.5 h-4 w-4 text-slate-400" />
+                Cetak Laporan
+              </DropdownMenuItem>
+              <DropdownMenuSeparator />
+              <DropdownMenuItem
+                className="rounded-lg font-bold text-sm py-2.5 px-3 text-red-600 focus:text-red-600 focus:bg-red-50"
+                onClick={() => handleNextAction("cancelled")}
               >
-                 Batalkan Order
+                <XCircle className="mr-2.5 h-4 w-4" />
+                Batalkan Order
               </DropdownMenuItem>
             </DropdownMenuContent>
           </DropdownMenu>
         </div>
-      </div>
+      </header>
 
+      {/* ── MAIN GRID ────────────────────────────────────────── */}
       <div className="grid grid-cols-1 lg:grid-cols-12 gap-6 min-h-0">
-        {/* --- LEFT COLUMN: Control Center + Client Info + Timeline --- */}
-        <div className="lg:col-span-4 flex flex-col gap-5 overflow-y-auto lg:max-h-[calc(100vh-12rem)] pr-1 scrollbar-thin">
-          
-          {/* 🚀 COMMAND CENTER CARD (Smart Action) */}
-          <Card className="shadow-lg shadow-slate-200/50 border-slate-200 dark:border-slate-800 overflow-hidden shrink-0 relative">
-            <div className={cn("absolute top-0 left-0 w-full h-1.5", getStatusColor(order.status).split(" ")[0])} />
-            <CardHeader className="pb-4 pt-6">
-                <CardTitle className="text-[11px] font-black text-slate-400 uppercase tracking-[0.2em] mb-2">
-                    Action Center
+        {/* ========================================================= */}
+        {/*  KOLOM KIRI: ACTION CENTER, CHECKLIST, TIMELINE, AGENT    */}
+        {/* ========================================================= */}
+        <aside className="lg:col-span-4 flex flex-col gap-5 overflow-y-auto lg:max-h-[calc(100vh-12rem)] pr-1 scrollbar-thin">
+          {/* ── Action Center ── */}
+          <Card className={cn(CARD_BASE, RADIUS, "overflow-hidden relative")}>
+            {/* Accent bar atas */}
+            <div className={cn("absolute inset-x-0 top-0 h-1", theme.accent)} />
+
+            <CardHeader className="pt-6 pb-3">
+              <div className="flex items-center gap-2">
+                <Zap className={cn("h-4 w-4", theme.icon)} />
+                <CardTitle className="text-[11px] font-extrabold text-slate-400 uppercase tracking-[.18em]">
+                  Action Center
                 </CardTitle>
-                <div className="bg-slate-50 dark:bg-slate-800/50 rounded-2xl border-2 border-slate-100 p-4 flex flex-col justify-center min-h-[5.5rem]">
-                    <p className="text-xs font-bold text-slate-500 mb-1">Total Tagihan Klien</p>
-                    <div className="flex items-center justify-between">
-                        <h3 className={cn(
-                          "text-2xl font-black tracking-tight", 
-                          order.quoted_price ? "text-slate-900" : "text-slate-300"
-                        )}>
-                            {order.quoted_price ? formatRupiah(order.quoted_price) : "Belum diatur"}
-                        </h3>
-                    </div>
-                </div>
+              </div>
             </CardHeader>
-            <CardContent>
-                {renderSmartAction()}
+
+            <CardContent className="pb-5">
+              {(() => {
+                switch (order.status) {
+                  case "draft":
+                    return (
+                      <PrimaryActionButton
+                        onClick={() => handleNextAction("verification")}
+                        loading={isUpdating}
+                        label="MULAI VERIFIKASI BERKAS"
+                        icon={FileText}
+                        colorClass="bg-sky-600 hover:bg-sky-700 shadow-sky-200/60"
+                      />
+                    );
+
+                  case "verification":
+                    return (
+                      <div className="space-y-3">
+                        <InfoBanner>
+                          Pastikan berkas sudah lengkap dan{" "}
+                          <strong>Harga &amp; Termin</strong> sudah ditetapkan di
+                          panel kanan sebelum lanjut.
+                        </InfoBanner>
+                        <PrimaryActionButton
+                          onClick={() => handleNextAction("payment")}
+                          loading={isUpdating}
+                          label="LANJUT KE PEMBAYARAN"
+                          icon={DollarSign}
+                          colorClass="bg-amber-600 hover:bg-amber-700 shadow-amber-200/60"
+                        />
+                      </div>
+                    );
+
+                  case "payment":
+                    return (
+                      <div className="space-y-3">
+                        <InfoBanner variant="warning">
+                          <div className="flex items-start gap-2.5">
+                            <Clock className="h-4 w-4 text-amber-500 shrink-0 mt-0.5 animate-pulse" />
+                            <div>
+                              <p className="font-bold text-sm">Menunggu DP Lunas</p>
+                              <p className="mt-0.5 opacity-80">
+                                Pastikan DP sudah dibayar klien sebelum melanjutkan.
+                              </p>
+                            </div>
+                          </div>
+                        </InfoBanner>
+                        <PrimaryActionButton
+                          onClick={() => handleNextAction("processing")}
+                          loading={isUpdating}
+                          label="MULAI PROSES INSTANSI"
+                          icon={Building2}
+                          colorClass="bg-sky-600 hover:bg-sky-700 shadow-sky-200/60"
+                        />
+                      </div>
+                    );
+
+                  case "processing":
+                    return (
+                      <div className="space-y-4">
+                        {/* Sub-status badges */}
+                        <div className="space-y-2.5">
+                          <p className="text-[10px] font-extrabold text-slate-400 uppercase tracking-[.18em]">
+                            Update Posisi Instansi
+                          </p>
+                          <div className="flex flex-wrap gap-2">
+                            {["PUPR", "ATR/BPN", "OSS", "Dinas Teknis"].map(
+                              (sub) => (
+                                <button
+                                  key={sub}
+                                  onClick={async () => {
+                                    setSubStatus(sub);
+                                    await supabase
+                                      .from("applications")
+                                      .update({ sub_status: sub })
+                                      .eq("id", order.id);
+                                    toast.success(`Posisi diupdate: ${sub}`);
+                                  }}
+                                  className={cn(
+                                    "px-3 py-1.5 rounded-lg text-xs font-bold transition-all border",
+                                    subStatus === sub
+                                      ? "bg-sky-600 text-white border-sky-600 shadow-sm"
+                                      : "bg-white text-slate-600 border-slate-200 hover:border-sky-300 hover:text-sky-700",
+                                  )}
+                                >
+                                  {sub}
+                                </button>
+                              ),
+                            )}
+                          </div>
+                        </div>
+                        <PrimaryActionButton
+                          onClick={() => handleNextAction("final_review")}
+                          loading={isUpdating}
+                          label="PROSES SELESAI → REVIEW"
+                          icon={ShieldCheck}
+                          colorClass="bg-indigo-600 hover:bg-indigo-700 shadow-indigo-200/60"
+                        />
+                      </div>
+                    );
+
+                  case "final_review":
+                    return (
+                      <PrimaryActionButton
+                        onClick={() => setIsCompleteModalOpen(true)}
+                        loading={isUpdating}
+                        label="SELESAIKAN PESANAN"
+                        icon={CheckCircle2}
+                        colorClass="bg-emerald-600 hover:bg-emerald-700 shadow-emerald-200/60"
+                      />
+                    );
+
+                  case "completed":
+                    return (
+                      <div className="flex flex-col items-center justify-center gap-2 py-4">
+                        <div className="h-12 w-12 rounded-2xl bg-emerald-100 flex items-center justify-center">
+                          <Sparkles className="h-5 w-5 text-emerald-600" />
+                        </div>
+                        <p className="text-sm font-extrabold text-emerald-800">
+                          Pesanan Selesai
+                        </p>
+                        <p className="text-xs text-emerald-600/70 font-medium">
+                          Semua proses telah diselesaikan.
+                        </p>
+                      </div>
+                    );
+
+                  case "cancelled":
+                    return (
+                      <div className="flex flex-col items-center justify-center gap-2 py-4">
+                        <div className="h-12 w-12 rounded-2xl bg-red-100 flex items-center justify-center">
+                          <XCircle className="h-5 w-5 text-red-500" />
+                        </div>
+                        <p className="text-sm font-extrabold text-red-700">
+                          Order Dibatalkan
+                        </p>
+                      </div>
+                    );
+
+                  default:
+                    return null;
+                }
+              })()}
             </CardContent>
           </Card>
 
-          {/* Client Info Card */}
-          <Card className="shadow-sm border-slate-200 shrink-0">
-            <CardHeader className="pb-3">
-              <CardTitle className="text-xs font-bold text-slate-400 uppercase tracking-widest flex items-center gap-2">
-                <User className="h-4 w-4" /> Informasi Klien
+          {/* ── Document Checklist ── */}
+          <DocumentChecklist applicationId={order.id} />
+
+          {/* ── Progress Timeline ── */}
+          <Card className={cn(CARD_BASE, RADIUS)}>
+            <CardHeader className="pb-2">
+              <CardTitle className="text-[11px] font-extrabold text-slate-400 uppercase tracking-[.18em]">
+                Workflow Progress
               </CardTitle>
             </CardHeader>
-            <CardContent className="space-y-4">
-              <div className="flex items-center gap-4 bg-slate-50 p-3 rounded-2xl border border-slate-100">
-                <Avatar className="h-12 w-12 border-2 border-white shadow-sm">
-                  <AvatarImage src={`https://api.dicebear.com/7.x/initials/svg?seed=${order.profiles?.full_name}`} />
-                  <AvatarFallback className="bg-blue-100 text-blue-700 font-bold">
-                    {order.profiles?.full_name?.charAt(0) || "?"}
-                  </AvatarFallback>
-                </Avatar>
-                <div className="min-w-0 flex-1">
-                  <p className="font-bold text-slate-900 truncate">{order.profiles?.full_name || "Tanpa Nama"}</p>
-                  <p className="text-xs font-medium text-slate-500 truncate">{order.profiles?.email}</p>
+            <CardContent className="pt-3 pb-5">
+              <div className="relative pl-1">
+                {/* Vertical line */}
+                <div className="absolute left-[13px] top-3 bottom-3 w-px bg-slate-200 dark:bg-slate-700" />
+
+                <div className="space-y-5">
+                  {CONSULTANT_STEPS.map((step, index) => {
+                    let stepStatus: "completed" | "current" | "upcoming" | "error" =
+                      "upcoming";
+                    if (isCancelled && order.status === step.id)
+                      stepStatus = "error";
+                    else if (isCancelled) stepStatus = "upcoming";
+                    else if (
+                      index < currentStepIndex ||
+                      order.status === "completed"
+                    )
+                      stepStatus = "completed";
+                    else if (index === currentStepIndex)
+                      stepStatus = "current";
+
+                    return (
+                      <div
+                        key={step.id}
+                        className="relative flex gap-3.5 items-start"
+                      >
+                        {/* Node */}
+                        <div
+                          className={cn(
+                            "relative z-10 flex h-7 w-7 items-center justify-center rounded-full border-2 transition-all duration-300 shrink-0",
+                            stepStatus === "completed" &&
+                              "bg-sky-600 border-sky-600 text-white shadow-sm shadow-sky-200",
+                            stepStatus === "current" &&
+                              "bg-white border-sky-600 text-sky-600 ring-[3px] ring-sky-100",
+                            stepStatus === "upcoming" &&
+                              "bg-slate-50 border-slate-200 text-slate-300",
+                            stepStatus === "error" &&
+                              "bg-red-50 border-red-400 text-red-500",
+                          )}
+                        >
+                          {stepStatus === "completed" && (
+                            <Check
+                              className="h-3.5 w-3.5"
+                              strokeWidth={3}
+                            />
+                          )}
+                          {stepStatus === "current" && (
+                            <div className="h-2 w-2 rounded-full bg-sky-600 animate-pulse" />
+                          )}
+                          {stepStatus === "upcoming" && (
+                            <Circle className="h-3 w-3 fill-slate-100 text-transparent" />
+                          )}
+                          {stepStatus === "error" && (
+                            <XCircle className="h-3.5 w-3.5" />
+                          )}
+                        </div>
+
+                        {/* Label */}
+                        <div className="pt-0.5 min-w-0">
+                          <p
+                            className={cn(
+                              "text-sm font-bold leading-tight transition-colors",
+                              (stepStatus === "completed" ||
+                                stepStatus === "current") &&
+                                "text-slate-800 dark:text-slate-100",
+                              stepStatus === "upcoming" && "text-slate-400",
+                              stepStatus === "error" && "text-red-600",
+                            )}
+                          >
+                            {step.label}
+                          </p>
+                          {stepStatus === "current" && (
+                            <p className="text-[11px] text-slate-500 mt-0.5 font-medium">
+                              {step.description}
+                            </p>
+                          )}
+                        </div>
+                      </div>
+                    );
+                  })}
                 </div>
-              </div>
-              
-              <div className="bg-slate-50 p-3 rounded-xl border border-slate-100 flex flex-col justify-center">
-                <span className="text-[10px] text-slate-400 font-bold uppercase mb-1">Layanan</span>
-                <span className="text-sm font-bold text-slate-700 truncate">{order.services?.name || "—"}</span>
-              </div>
-              <div className="grid grid-cols-2 gap-3">
-                 <div className="bg-slate-50 p-3 rounded-xl border border-slate-100 flex flex-col justify-center">
-                    <span className="text-[10px] text-slate-400 font-bold uppercase mb-1">Telepon</span>
-                    <span className="text-sm font-bold text-slate-700 truncate">{order.profiles?.phone || "—"}</span>
-                 </div>
-                 <div className="bg-slate-50 p-3 rounded-xl border border-slate-100 flex flex-col justify-center">
-                    <span className="text-[10px] text-slate-400 font-bold uppercase mb-1">Perusahaan</span>
-                    <span className="text-sm font-bold text-slate-700 truncate">{order.company_name || "—"}</span>
-                 </div>
               </div>
             </CardContent>
           </Card>
 
-          {/* Progress Timeline Card */}
-            <Card className="shadow-sm border-slate-200 shrink-0">
-                <CardHeader className="pb-2">
-                    <CardTitle className="text-xs font-bold text-slate-400 uppercase tracking-widest">
-                        Progres Timeline
+          {/* ── Agent Control ── */}
+          <AgentControlPanel
+            applicationId={order.id}
+            currentAgentId={order.assigned_agent_id}
+          />
+        </aside>
+
+        {/* ========================================================= */}
+        {/*  KOLOM KANAN: KEUANGAN + CHAT                             */}
+        {/* ========================================================= */}
+        <div className="lg:col-span-8 flex flex-col gap-6">
+          {/* ── KONTRAK EDITOR / MILESTONE LIST ── */}
+          {isEditingContract ? (
+            <Card
+              className={cn(
+                CARD_BASE,
+                RADIUS,
+                "ring-2 ring-sky-100 relative overflow-hidden",
+              )}
+            >
+              {/* Accent bar kiri */}
+              <div className="absolute inset-y-0 left-0 w-1 bg-sky-500 rounded-l-2xl" />
+
+              <CardHeader className="pb-4 border-b border-slate-100">
+                <div className="flex items-center gap-3">
+                  <div className="h-10 w-10 bg-sky-100 text-sky-600 rounded-xl flex items-center justify-center shrink-0">
+                    <Receipt className="h-5 w-5" />
+                  </div>
+                  <div>
+                    <CardTitle className="text-base font-extrabold text-slate-800 tracking-tight">
+                      Atur Nilai Kontrak &amp; Termin
                     </CardTitle>
-                </CardHeader>
-                <CardContent className="pt-4">
-                    <div className="relative pl-2">
-                        <div className="absolute left-[15px] top-2 bottom-4 w-0.5 bg-slate-100" />
-                        <div className="space-y-6">
-                            {TIMELINE_STEPS.map((step, index) => {
-                                let status: 'completed' | 'current' | 'upcoming' | 'error' = 'upcoming';
-                                if (isCancelled && order.status === step.id) status = 'error';
-                                else if (isCancelled) status = 'upcoming'; 
-                                else if (index < currentStepIndex || order.status === 'completed') status = 'completed';
-                                else if (index === currentStepIndex) status = 'current';
+                    <CardDescription className="text-xs mt-0.5">
+                      Tentukan total biaya dan persentase DP dengan slider.
+                    </CardDescription>
+                  </div>
+                </div>
+              </CardHeader>
 
-                                return (
-                                    <div key={step.id} className="relative flex gap-4 items-start group">
-                                        <div className={cn(
-                                            "relative z-10 flex h-7 w-7 items-center justify-center rounded-full border-2 transition-all duration-300",
-                                            status === 'completed' && "bg-blue-600 border-blue-600 text-white shadow-md shadow-blue-200",
-                                            status === 'current' && "bg-white border-blue-600 text-blue-600 ring-4 ring-blue-50",
-                                            status === 'upcoming' && "bg-white border-slate-200 text-slate-300",
-                                            status === 'error' && "bg-red-50 border-red-500 text-red-500"
-                                        )}>
-                                            {status === 'completed' && <Check className="h-3.5 w-3.5" strokeWidth={3} />}
-                                            {status === 'current' && <div className="h-2 w-2 rounded-full bg-blue-600 animate-pulse" />}
-                                            {status === 'upcoming' && <Circle className="h-3.5 w-3.5 fill-slate-50 text-transparent" />}
-                                            {status === 'error' && <XCircle className="h-4 w-4" />}
-                                        </div>
-                                        <div className="pt-0.5">
-                                            <p className={cn(
-                                                "text-sm font-bold transition-colors",
-                                                status === 'completed' || status === 'current' ? "text-slate-800" : "text-slate-400",
-                                                status === 'error' && "text-red-600"
-                                            )}>
-                                                {step.label}
-                                            </p>
-                                            <p className="text-xs text-slate-400 font-medium">
-                                                {step.description}
-                                            </p>
-                                        </div>
-                                    </div>
-                                );
-                            })}
-                        </div>
+              <CardContent className="pt-6 space-y-6">
+                {/* Input Harga */}
+                <div className="space-y-2 max-w-sm">
+                  <label className="text-[10px] font-extrabold text-slate-400 uppercase tracking-[.18em]">
+                    Total Biaya Layanan
+                  </label>
+                  <div className="relative group">
+                    <div className="absolute left-4 top-1/2 -translate-y-1/2 text-slate-400 font-extrabold text-sm group-focus-within:text-sky-600 transition-colors">
+                      Rp
                     </div>
-                </CardContent>
+                    <Input
+                      type="text"
+                      inputMode="numeric"
+                      value={priceEditValue}
+                      onChange={(e) =>
+                        setPriceEditValue(
+                          formatPriceWithCommas(e.target.value),
+                        )
+                      }
+                      placeholder="0"
+                      className="pl-12 font-extrabold text-xl rounded-xl border-2 border-slate-200 focus-visible:ring-sky-500/20 focus-visible:border-sky-500 h-14 transition-all"
+                    />
+                  </div>
+                </div>
+
+                {/* Slider DP */}
+                <div className="bg-slate-50/80 p-5 rounded-xl border border-slate-200/80 space-y-4">
+                  <div className="flex justify-between items-center">
+                    <label className="text-[10px] font-extrabold text-slate-500 uppercase tracking-[.15em]">
+                      Persentase Down Payment
+                    </label>
+                    <span className="text-sm font-extrabold text-sky-700 bg-sky-50 ring-1 ring-sky-200 rounded-lg px-2.5 py-0.5">
+                      {dpPercentage}%
+                    </span>
+                  </div>
+
+                  <Slider
+                    value={[dpPercentage]}
+                    onValueChange={(val) => setDpPercentage(val[0])}
+                    min={50}
+                    max={100}
+                    step={10}
+                    className="py-2 cursor-pointer"
+                  />
+
+                  <div className="flex justify-between text-[10px] text-slate-400 font-bold uppercase tracking-wider px-0.5">
+                    <span>Min 50%</span>
+                    <span>Lunas 100%</span>
+                  </div>
+
+                  {/* Preview Tagihan */}
+                  <div className="mt-4 pt-4 border-t border-slate-200/60 grid grid-cols-2 gap-3">
+                    <div className="bg-white p-3.5 rounded-xl border border-slate-100 shadow-sm">
+                      <span className="block text-[10px] text-slate-400 font-bold uppercase tracking-widest mb-1">
+                        DP ({dpPercentage}%)
+                      </span>
+                      <span className="text-base font-extrabold text-slate-900">
+                        {priceEditValue
+                          ? formatRupiah(
+                              (parseInt(
+                                parsePriceFromCommas(priceEditValue),
+                              ) *
+                                dpPercentage) /
+                                100,
+                            )
+                          : "Rp 0"}
+                      </span>
+                    </div>
+                    {dpPercentage < 100 ? (
+                      <div className="bg-white p-3.5 rounded-xl border border-slate-100 shadow-sm">
+                        <span className="block text-[10px] text-slate-400 font-bold uppercase tracking-widest mb-1">
+                          Sisa ({100 - dpPercentage}%)
+                        </span>
+                        <span className="text-base font-extrabold text-slate-900">
+                          {priceEditValue
+                            ? formatRupiah(
+                                (parseInt(
+                                  parsePriceFromCommas(priceEditValue),
+                                ) *
+                                  (100 - dpPercentage)) /
+                                  100,
+                              )
+                            : "Rp 0"}
+                        </span>
+                      </div>
+                    ) : (
+                      <div className="bg-emerald-50 p-3.5 rounded-xl border border-emerald-100 shadow-sm flex items-center justify-center">
+                        <span className="text-xs font-extrabold text-emerald-700 uppercase tracking-wider">
+                          Tidak Ada Sisa
+                        </span>
+                      </div>
+                    )}
+                  </div>
+                </div>
+
+                {/* Action Buttons */}
+                <div className="flex items-center gap-3 pt-1">
+                  <Button
+                    onClick={handleSavePriceAndMilestone}
+                    disabled={isUpdating}
+                    className="h-12 px-7 font-extrabold bg-sky-600 hover:bg-sky-700 text-white rounded-xl shadow-lg shadow-sky-200/50 active:scale-[.97] transition-all text-sm"
+                  >
+                    {isUpdating ? (
+                      <Loader2 className="animate-spin h-4 w-4 mr-2" />
+                    ) : (
+                      <SendHorizontal className="h-4 w-4 mr-2" />
+                    )}
+                    SIMPAN &amp; BUAT TAGIHAN
+                  </Button>
+                  {order.quoted_price > 0 && (
+                    <Button
+                      variant="ghost"
+                      onClick={() => setIsEditingContract(false)}
+                      className="h-12 px-5 font-bold text-slate-500 hover:bg-slate-100 rounded-xl"
+                    >
+                      Batal
+                    </Button>
+                  )}
+                </div>
+              </CardContent>
             </Card>
+          ) : (
+            <div className="space-y-3">
+              <AdminMilestoneInvoices
+                applicationId={order.id}
+                invoices={milestones}
+                totalPrice={order.quoted_price}
+              />
+            </div>
+          )}
 
-            {/* --- AGENT CONTROL PANEL --- */}
-            <AgentControlPanel 
-              applicationId={order.id} 
-              currentAgentId={order.assigned_agent_id} 
-            />
-        </div>
-
-        {/* --- RIGHT COLUMN: CHAT --- */}
-        <div className="lg:col-span-8 flex flex-col min-h-[420px] lg:min-h-[calc(100vh-12rem)] overflow-hidden">
-          {currentUserId ? (
-            <ChatBoxAdmin
-              key={order.id}
-              applicationId={order.id}
-              initialMessages={initialMessages}
-              currentUserId={currentUserId}
-              className="flex-1 flex flex-col min-h-0 w-full max-h-[calc(100vh-10rem)] shadow-sm rounded-2xl border border-slate-200"
-              title={order.profiles?.full_name || "Tanpa Nama"}
-              subtitle={order.services?.name || "Komunikasi resmi klien"}
-              onTypingChange={setClientIsTyping}
-            />
-          ) : null}
+          {/* ── CHAT ── */}
+          <div className="flex-1 flex flex-col min-h-[420px] lg:min-h-[calc(100vh-32rem)] overflow-hidden">
+            {currentUserId ? (
+              <ChatBoxAdmin
+                key={order.id}
+                applicationId={order.id}
+                initialMessages={initialMessages}
+                currentUserId={currentUserId}
+                className={cn(
+                  "flex-1 flex flex-col min-h-0 w-full",
+                  CARD_BASE,
+                  RADIUS,
+                )}
+                title={order.profiles?.full_name || "Tanpa Nama"}
+                subtitle={order.services?.name || "Komunikasi resmi klien"}
+                onTypingChange={setClientIsTyping}
+              />
+            ) : null}
+          </div>
         </div>
       </div>
 
-      {/* MODAL FORM QUOTATION */}
-      <Dialog open={isQuotationModalOpen} onOpenChange={setIsQuotationModalOpen}>
-        <DialogContent className="rounded-[2.5rem] max-w-md p-0 overflow-hidden border-none shadow-2xl">
-          <div className="bg-blue-600 p-8 text-white relative">
-            <DialogHeader>
-                <div className="h-12 w-12 bg-white/20 rounded-2xl flex items-center justify-center mb-4">
-                  <Receipt className="h-6 w-6 text-white" />
-                </div>
-                <DialogTitle className="text-2xl font-black tracking-tight text-white leading-tight">
-                  Kirim Penawaran <br/> Harga (Quotation)
-                </DialogTitle>
-                <DialogDescription className="text-blue-100 font-medium pt-2">
-                  Masukkan nominal biaya layanan untuk <strong>{order.company_name}</strong>. Klien akan segera menerima tagihan.
-                </DialogDescription>
-            </DialogHeader>
-          </div>
-          
-          <div className="p-8 space-y-6 bg-white">
-            <div className="space-y-3">
-              <label className="text-[10px] font-black text-slate-400 uppercase tracking-[0.2em]">Total Biaya Layanan</label>
-              <div className="relative group">
-                  <div className="absolute left-4 top-1/2 -translate-y-1/2 text-slate-400 font-black text-lg transition-colors group-focus-within:text-blue-600">Rp</div>
-                  <Input 
-                    type="text" 
-                    inputMode="numeric" 
-                    value={priceEditValue} 
-                    onChange={(e) => setPriceEditValue(formatPriceWithCommas(e.target.value))} 
-                    placeholder="0" 
-                    className="pl-14 text-right font-black text-xl rounded-2xl border-2 border-slate-100 focus-visible:ring-blue-600 focus-visible:border-blue-600 h-16 transition-all shadow-inner"
-                  />
-              </div>
-            </div>
-
-            <div className="bg-slate-50 p-4 rounded-2xl border border-slate-100">
-               <div className="flex justify-between items-center text-sm">
-                  <span className="text-slate-500 font-bold">Layanan</span>
-                  <span className="text-slate-900 font-black">{order.services?.name}</span>
-               </div>
-            </div>
-
-            <DialogFooter className="flex flex-col sm:flex-row gap-3 pt-2">
-              <Button 
-                onClick={handleQuotationSubmit} 
-                disabled={isUpdating} 
-                className="flex-[2] h-14 rounded-2xl font-black bg-blue-600 hover:bg-blue-700 shadow-lg shadow-blue-200 active:scale-95 transition-all text-base"
-              >
-                {isUpdating ? <Loader2 className="animate-spin h-5 w-5" /> : <><SendHorizontal className="mr-2 h-5 w-5" /> KIRIM PENAWARAN</>}
-              </Button>
-              <Button 
-                variant="ghost" 
-                onClick={() => setIsQuotationModalOpen(false)} 
-                className="flex-1 h-14 rounded-2xl font-bold text-slate-400 hover:text-slate-600 hover:bg-slate-100"
-              >
-                BATAL
-              </Button>
-            </DialogFooter>
-          </div>
-        </DialogContent>
-      </Dialog>
-
-      {/* --- MODAL UPLOAD DOKUMEN FINAL & SELESAIKAN PESANAN --- */}
+      {/* ── MODAL UPLOAD DOKUMEN FINAL ────────────────────────── */}
       <Dialog open={isCompleteModalOpen} onOpenChange={setIsCompleteModalOpen}>
-        <DialogContent className="rounded-[2.5rem] max-w-md p-0 overflow-hidden border-none shadow-2xl">
-          <div className="bg-emerald-600 p-8 text-white relative">
+        <DialogContent className="rounded-3xl max-w-md p-0 overflow-hidden border-none shadow-2xl">
+          {/* Header hijau */}
+          <div className="bg-gradient-to-br from-emerald-600 to-emerald-700 px-8 pt-8 pb-7 text-white">
             <DialogHeader>
-                <div className="h-12 w-12 bg-white/20 rounded-2xl flex items-center justify-center mb-4">
-                  <UploadCloud className="h-6 w-6 text-white" />
-                </div>
-                <DialogTitle className="text-2xl font-black tracking-tight text-white leading-tight">
-                  Unggah Dokumen <br/> & Selesaikan
-                </DialogTitle>
-                <DialogDescription className="text-emerald-100 font-medium pt-2">
-                  Unggah dokumen final (PDF/Gambar) sebagai bukti bahwa layanan telah terbit untuk diserahkan kepada Klien.
-                </DialogDescription>
+              <div className="h-11 w-11 bg-white/20 backdrop-blur-sm rounded-2xl flex items-center justify-center mb-4">
+                <UploadCloud className="h-5 w-5 text-white" />
+              </div>
+              <DialogTitle className="text-xl font-extrabold tracking-tight text-white leading-snug">
+                Unggah Dokumen
+                <br />
+                &amp; Serah Terima
+              </DialogTitle>
+              <DialogDescription className="text-emerald-100/80 text-sm mt-1">
+                Upload dokumen final untuk diserahkan ke klien.
+              </DialogDescription>
             </DialogHeader>
           </div>
-          
-          <div className="p-8 space-y-6 bg-white">
-            <div className="space-y-3">
-              <label className="text-[10px] font-black text-slate-400 uppercase tracking-[0.2em]">Pilih Dokumen Final</label>
-              <Input 
-                type="file" 
+
+          <div className="p-7 space-y-5 bg-white">
+            <div className="space-y-2.5">
+              <label className="text-[10px] font-extrabold text-slate-400 uppercase tracking-[.18em]">
+                Pilih Dokumen Final
+              </label>
+              <Input
+                type="file"
                 accept=".pdf,.jpg,.jpeg,.png"
-                onChange={(e) => setFinalDocument(e.target.files?.[0] || null)}
-                className="h-14 rounded-2xl border-2 border-slate-100 pt-3 px-4 file:mr-4 file:py-1 file:px-4 file:rounded-xl file:border-0 file:text-xs file:font-bold file:bg-emerald-50 file:text-emerald-700 hover:file:bg-emerald-100 transition-all cursor-pointer"
+                onChange={(e) =>
+                  setFinalDocument(e.target.files?.[0] || null)
+                }
+                className="h-14 rounded-xl border-2 border-dashed border-slate-200 bg-slate-50/50 pt-3.5 px-4 file:mr-4 file:py-1 file:px-4 file:rounded-lg file:border-0 file:text-xs file:font-bold file:bg-emerald-50 file:text-emerald-700 hover:file:bg-emerald-100 transition-all cursor-pointer hover:border-emerald-300"
               />
-              {finalDocument && (
-                <div className="flex items-center gap-2 mt-2 bg-emerald-50/50 p-2 rounded-xl border border-emerald-100">
-                   <FileText className="h-4 w-4 text-emerald-500" />
-                   <p className="text-xs font-bold text-emerald-700 truncate">{finalDocument.name}</p>
-                </div>
-              )}
             </div>
 
-            <DialogFooter className="flex flex-col sm:flex-row gap-3 pt-2">
-              <Button 
-                onClick={handleCompleteSubmit} 
-                disabled={isUpdating} 
-                className="flex-[2] h-14 rounded-2xl font-black bg-emerald-600 hover:bg-emerald-700 shadow-lg shadow-emerald-200 active:scale-95 transition-all text-base"
+            <DialogFooter>
+              <Button
+                onClick={handleCompleteSubmit}
+                disabled={isUpdating}
+                className="w-full h-[52px] rounded-xl font-extrabold bg-emerald-600 hover:bg-emerald-700 shadow-lg shadow-emerald-200/50 active:scale-[.97] transition-all text-sm"
               >
-                {isUpdating ? <Loader2 className="animate-spin h-5 w-5" /> : <><CheckCircle2 className="mr-2 h-5 w-5" /> UPLOAD & SELESAI</>}
-              </Button>
-              <Button 
-                variant="ghost" 
-                onClick={() => setIsCompleteModalOpen(false)} 
-                className="flex-1 h-14 rounded-2xl font-bold text-slate-400 hover:text-slate-600 hover:bg-slate-100"
-              >
-                BATAL
+                {isUpdating ? (
+                  <Loader2 className="animate-spin h-5 w-5" />
+                ) : (
+                  <>
+                    <CheckCircle2 className="mr-2 h-[18px] w-[18px]" />
+                    UPLOAD &amp; SELESAI
+                  </>
+                )}
               </Button>
             </DialogFooter>
           </div>

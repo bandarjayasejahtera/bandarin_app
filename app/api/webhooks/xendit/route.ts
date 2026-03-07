@@ -31,6 +31,39 @@ export async function POST(request: Request) {
     }
 
     // 3. Cari order berdasarkan payment_invoice_id, SERTA ambil data Profil dan Service
+    // 3a. Cek apakah ini invoice milestone
+    const { data: milestoneInvoice, error: milestoneErr } = await supabaseAdmin
+      .from('invoices')
+      .select('id, application_id, status, milestone_label, xendit_external_id')
+      .eq('xendit_external_id', external_id)
+      .single();
+
+    if (!milestoneErr && milestoneInvoice) {
+      if (status === 'PAID' || status === 'SETTLED') {
+        await supabaseAdmin
+          .from('invoices')
+          .update({
+            status: 'paid',
+            paid_at: paid_at || new Date().toISOString(),
+            updated_at: new Date().toISOString(),
+          })
+          .eq('id', milestoneInvoice.id);
+      } else if (status === 'EXPIRED') {
+        await supabaseAdmin
+          .from('invoices')
+          .update({ status: 'expired', updated_at: new Date().toISOString() })
+          .eq('id', milestoneInvoice.id);
+      } else if (status === 'FAILED') {
+        await supabaseAdmin
+          .from('invoices')
+          .update({ status: 'failed', updated_at: new Date().toISOString() })
+          .eq('id', milestoneInvoice.id);
+      }
+
+      return NextResponse.json({ message: 'Milestone invoice processed' }, { status: 200 });
+    }
+
+    // 3b. Legacy flow: payment_invoice_id pada applications
     const { data: order, error: findError } = await supabaseAdmin
       .from('applications')
       .select(`
