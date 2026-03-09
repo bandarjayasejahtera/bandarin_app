@@ -16,6 +16,7 @@ import {
   AlertTriangle,
   Clock,
   Receipt,
+  Sparkles,
 } from 'lucide-react';
 import { format } from 'date-fns';
 import { id as idLocale } from 'date-fns/locale';
@@ -87,6 +88,7 @@ export function PaymentStatusBanner({
         </div>
         {/* Dekorasi */}
         <div className="absolute top-0 right-0 h-40 w-40 bg-white opacity-5 rounded-full -mr-10 -mt-10 group-hover:scale-110 transition-transform duration-700" />
+        <Sparkles className="absolute bottom-4 left-8 h-6 w-6 text-white opacity-20" />
       </Card>
     );
   }

@@ -1,3 +1,4 @@
+// actions/admin/agent-actions.ts
 "use server";
 
 import { createAdminClient } from "@/utils/supabase/server";
@@ -54,6 +55,7 @@ export async function getAgentById(id: string) {
 export async function getApplicationsByAgent(agentId: string) {
   const supabase = await createAdminClient();
   
+  // PERBAIKAN: Sintaks relasi Supabase yang benar (menghilangkan alias yang salah)
   const { data, error } = await supabase
     .from("applications")
     .select(`
@@ -62,8 +64,8 @@ export async function getApplicationsByAgent(agentId: string) {
       created_at,
       user_id,
       service_id,
-      profiles:user_id (full_name),
-      services:service_id (name)
+      profiles:profiles!applications_userid_fkey ( full_name ),
+      services:services!applications_service_id_fkey ( name )
     `)
     .eq("assigned_agent_id", agentId)
     .order("created_at", { ascending: false });
@@ -106,7 +108,7 @@ export async function createAgent(formData: {
   return { success: true };
 }
 
-// 5. Update agen (Opsional, untuk masa depan)
+// 5. Update agen
 export async function updateAgent(id: string, updateData: Partial<Agent>) {
   const supabase = await createAdminClient();
 

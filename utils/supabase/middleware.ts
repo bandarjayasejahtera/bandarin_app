@@ -1,14 +1,9 @@
 // utils/supabase/middleware.ts
-import { createServerClient } from '@supabase/ssr'
-import { NextResponse, type NextRequest } from 'next/server'
+import { createServerClient } from "@supabase/ssr";
+import { NextResponse, type NextRequest } from "next/server";
 
 export async function updateSession(request: NextRequest) {
-  // 1. Buat response awal
-  let response = NextResponse.next({
-    request: {
-      headers: request.headers,
-    },
-  })
+  let supabaseResponse = NextResponse.next({ request });
 
   const supabase = createServerClient(
     process.env.NEXT_PUBLIC_SUPABASE_URL!,
@@ -16,45 +11,65 @@ export async function updateSession(request: NextRequest) {
     {
       cookies: {
         getAll() {
-          return request.cookies.getAll()
+          return request.cookies.getAll();
         },
         setAll(cookiesToSet) {
-          // Update cookie di request DAN response agar sinkron
+          cookiesToSet.forEach(({ name, value, options }) => request.cookies.set(name, value));
+          supabaseResponse = NextResponse.next({ request });
           cookiesToSet.forEach(({ name, value, options }) =>
-            request.cookies.set(name, value)
-          )
-          response = NextResponse.next({
-            request,
-          })
-          cookiesToSet.forEach(({ name, value, options }) =>
-            response.cookies.set(name, value, options)
-          )
+            supabaseResponse.cookies.set(name, value, options)
+          );
         },
       },
     }
-  )
+  );
 
-  // 2. Refresh Session (PENTING: Jangan gunakan getUser di sini untuk logic berat)
-  const { data: { user } } = await supabase.auth.getUser()
+  const { data: { user } } = await supabase.auth.getUser();
+  const path = request.nextUrl.pathname;
 
-  // 3. Proteksi Dasar: Hanya cek apakah user login atau tidak
-  // Logika Role Admin lebih aman & cepat dilakukan di Layout (Server Component)
-
-  // Jika akses /dashboard/* atau /admin/* tapi tidak login -> tendang ke /login
-  if (
-    (request.nextUrl.pathname.startsWith('/dashboard') || 
-     request.nextUrl.pathname.startsWith('/admin')) 
-    && !user
-  ) {
-    return NextResponse.redirect(new URL('/login', request.url))
+  // Jika belum login dan mencoba akses rute terproteksi
+  const isProtectedRoute = path.startsWith('/admin') || path.startsWith('/client') || path.startsWith('/agent') || path.startsWith('/outsrc');
+  if (!user && isProtectedRoute) {
+    const url = request.nextUrl.clone();
+    url.pathname = "/login"; // Sesuaikan dengan halaman login Anda
+    return NextResponse.redirect(url);
   }
 
-  // Jika sudah login tapi akses /login -> lempar ke dashboard sesuai role
-  if (request.nextUrl.pathname === '/login' && user) {
-    const { data: profile } = await supabase.from('profiles').select('role').eq('id', user.id).single()
-    const dashboardPath = profile?.role === 'admin' ? '/admin' : '/client'
-    return NextResponse.redirect(new URL(dashboardPath, request.url))
+  // RBAC (Role-Based Access Control)
+  if (user && isProtectedRoute) {
+    // Ambil role dari tabel profiles
+    const { data: profile } = await supabase
+      .from('profiles')
+      .select('role')
+      .eq('id', user.id)
+      .single();
+
+    const role = profile?.role || 'client'; // default fallback
+
+    // Aturan Pengalihan (Redirect Rules)
+    if (path.startsWith('/admin') && role !== 'admin') {
+      return NextResponse.redirect(new URL(`/${role}`, request.url));
+    }
+    if (path.startsWith('/agent') && role !== 'agent') {
+      return NextResponse.redirect(new URL(`/${role}`, request.url));
+    }
+    if (path.startsWith('/outsrc') && role !== 'outsrc') {
+      return NextResponse.redirect(new URL(`/${role}`, request.url));
+    }
+    if (path.startsWith('/client') && role !== 'client') {
+      // Pengecualian: Admin mungkin ingin melihat view client
+      if (role !== 'admin') {
+         return NextResponse.redirect(new URL(`/${role}`, request.url));
+      }
+    }
   }
 
-  return response
+  // Jika user sudah login dan mengakses root (/), arahkan ke dashboard masing-masing
+  if (user && (path === '/' || path === '/login')) {
+    const { data: profile } = await supabase.from('profiles').select('role').eq('id', user.id).single();
+    const role = profile?.role || 'client';
+    return NextResponse.redirect(new URL(`/${role}`, request.url));
+  }
+
+  return supabaseResponse;
 }

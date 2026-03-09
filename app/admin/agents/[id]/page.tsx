@@ -135,32 +135,40 @@ export default async function AgentDetailPage({ params }: PageProps) {
                           </TableCell>
                         </TableRow>
                       ) : (
-                        applications.map((app: any) => (
-                          <TableRow key={app.id} className="group hover:bg-slate-50 dark:hover:bg-slate-900/50">
-                            <TableCell className="font-bold text-slate-700 dark:text-slate-200">
-                              {app.services?.name}
-                            </TableCell>
-                            <TableCell className="text-slate-600">{app.profiles?.full_name}</TableCell>
-                            <TableCell className="text-xs text-slate-500">
-                              <div className="flex items-center gap-1.5">
-                                <Calendar className="h-3 w-3" />
-                                {format(new Date(app.created_at), "dd MMM yyyy", { locale: idLocale })}
-                              </div>
-                            </TableCell>
-                            <TableCell>
-                              <Badge variant="outline" className="capitalize font-bold">
-                                {app.status}
-                              </Badge>
-                            </TableCell>
-                            <TableCell className="text-right">
-                              <Link href={`/admin/services/orders/${app.id}`}>
-                                <Button size="sm" variant="secondary" className="h-8 text-xs font-bold">
-                                  Lihat Detail
-                                </Button>
-                              </Link>
-                            </TableCell>
-                          </TableRow>
-                        ))
+                        applications.map((app: any) => {
+                          // Pengamanan (fallback) untuk memastikan data nama selalu muncul walau dikembalikan dalam array
+                          const serviceName = Array.isArray(app.services) ? app.services[0]?.name : app.services?.name;
+                          const clientName = Array.isArray(app.profiles) ? app.profiles[0]?.full_name : app.profiles?.full_name;
+
+                          return (
+                            <TableRow key={app.id} className="group hover:bg-slate-50 dark:hover:bg-slate-900/50">
+                              <TableCell className="font-bold text-slate-700 dark:text-slate-200">
+                                {serviceName || "Layanan Tidak Diketahui"}
+                              </TableCell>
+                              <TableCell className="text-slate-600">
+                                {clientName || "-"}
+                              </TableCell>
+                              <TableCell className="text-xs text-slate-500">
+                                <div className="flex items-center gap-1.5">
+                                  <Calendar className="h-3 w-3" />
+                                  {format(new Date(app.created_at), "dd MMM yyyy", { locale: idLocale })}
+                                </div>
+                              </TableCell>
+                              <TableCell>
+                                <Badge variant="outline" className="capitalize font-bold">
+                                  {app.status}
+                                </Badge>
+                              </TableCell>
+                              <TableCell className="text-right">
+                                <Link href={`/admin/services/orders/${app.id}`}>
+                                  <Button size="sm" variant="secondary" className="h-8 text-xs font-bold">
+                                    Lihat Detail
+                                  </Button>
+                                </Link>
+                              </TableCell>
+                            </TableRow>
+                          );
+                        })
                       )}
                     </TableBody>
                   </Table>
@@ -171,7 +179,7 @@ export default async function AgentDetailPage({ params }: PageProps) {
             {/* TAB 2: Chatbox Core */}
             <TabsContent value="chat" className="m-0">
               <ChatBoxCore 
-                applicationId={id} // Kita menggunakan ID Agen sebagai ID "Room" Chat
+                applicationId={id}
                 initialMessages={initialMessages || []}
                 currentUserId={user?.id || ""}
                 notificationSoundUrl="/sounds/chat-notification.wav"

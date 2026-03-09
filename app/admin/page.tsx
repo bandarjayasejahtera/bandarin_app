@@ -12,7 +12,8 @@ import {
   Briefcase,
   AlertCircle,
   Plus,
-  Users
+  Users,
+  Database
 } from "lucide-react";
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
 import { Badge } from "@/components/ui/badge";
@@ -95,7 +96,7 @@ export default async function AdminDashboardPage({ searchParams }: PageProps) {
           </CardContent>
         </Card>
 
-        {/* Mini Cards - Memperbaiki error activeCount */}
+        {/* Mini Cards */}
         {[
           { label: 'Perlu Review', val: pendingReview, icon: AlertCircle, color: 'text-amber-500', bg: 'bg-amber-500/10' },
           { label: 'Proyek Aktif', val: activeProjects, icon: Briefcase, color: 'text-blue-500', bg: 'bg-blue-500/10' },
@@ -208,9 +209,9 @@ export default async function AdminDashboardPage({ searchParams }: PageProps) {
                             <Plus size={18} /> Layanan Baru
                         </Button>
                     </Link>
-                    <Link href="/admin/clients">
+                    <Link href="/admin/profiles">
                         <Button variant="secondary" className="w-full justify-start gap-3 bg-blue-500/30 hover:bg-blue-500/40 text-white border-0 h-11 rounded-xl font-bold">
-                            <Users size={18} /> Database Klien
+                            <Database size={18} /> Kelola Profil & Role
                         </Button>
                     </Link>
                 </CardContent>

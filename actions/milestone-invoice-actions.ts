@@ -1,3 +1,4 @@
+//actions/milestone-invoice-actions.ts
 'use server';
 
 import { createClient } from '@/utils/supabase/server';
@@ -6,15 +7,13 @@ import { Invoice } from 'xendit-node';
 
 export type MilestoneKey = 'dp' | 'stage2' | 'final';
 
-// ── helpers ──────────────────────────────────────────────────────────────────
-
+// Helper untuk menangani relasi Supabase yang mungkin berbentuk array atau objek
 function resolveRelation<T>(value: T | T[] | null | undefined): T | null {
   if (!value) return null;
   return Array.isArray(value) ? (value[0] ?? null) : value;
 }
 
-// ── 1. GET ────────────────────────────────────────────────────────────────────
-
+// 1. Ambil semua invoice untuk satu aplikasi
 export async function getMilestoneInvoices(applicationId: string) {
   const supabase = await createClient();
   const { data, error } = await supabase
@@ -26,12 +25,7 @@ export async function getMilestoneInvoices(applicationId: string) {
   return { success: !error, invoices: data ?? [], error: error?.message };
 }
 
-// ── 2. ENSURE ─────────────────────────────────────────────────────────────────
-
-/**
- * Idempotent: bila invoice sudah ada, kembalikan data existing.
- * Bila belum, buat termin baru lalu kembalikan data yang baru dibuat.
- */
+// 2. Inisialisasi Termin (Idempotent)
 export async function ensureMilestoneInvoices(
   applicationId: string,
   totalPrice: number,
@@ -39,87 +33,86 @@ export async function ensureMilestoneInvoices(
 ) {
   const supabase = await createClient();
 
-  // Cek data existing
   const { data: existing } = await supabase
     .from('invoices')
     .select('*')
-    .eq('application_id', applicationId)
-    .order('created_at', { ascending: true });
+    .eq('application_id', applicationId);
 
-  if (existing && existing.length > 0) {
-    return { success: true, invoices: existing };
-  }
+  if (existing && existing.length > 0) return { success: true, invoices: existing };
 
-  // Susun termin
   const total = Math.round(totalPrice);
-  type MilestoneDef = { milestone_key: MilestoneKey; milestone_label: string; percentage: number };
+  const milestones = dpPercentage === 100 
+    ? [{ key: 'final', label: 'Pembayaran Penuh', pct: 100 }]
+    : [
+        { key: 'dp', label: 'Down Payment (DP)', pct: dpPercentage },
+        { key: 'final', label: 'Pelunasan', pct: 100 - dpPercentage }
+      ];
 
-  const milestones: MilestoneDef[] =
-    dpPercentage === 100
-      ? [{ milestone_key: 'final', milestone_label: 'Pembayaran Penuh', percentage: 100 }]
-      : [
-          { milestone_key: 'dp', milestone_label: 'Down Payment (DP)', percentage: dpPercentage },
-          { milestone_key: 'final', milestone_label: 'Pelunasan Hasil', percentage: 100 - dpPercentage },
-        ];
-
-  // Hitung amount; termin terakhir mendapat sisa agar total selalu tepat
-  let runningSum = 0;
+  let currentSum = 0;
   const inserts = milestones.map((m, idx) => {
     const isLast = idx === milestones.length - 1;
-    const amount = isLast
-      ? total - runningSum
-      : Math.floor((total * m.percentage) / 100);
-    if (!isLast) runningSum += amount;
+    const amount = isLast ? total - currentSum : Math.floor((total * m.pct) / 100);
+    if (!isLast) currentSum += amount;
+    
     return {
       application_id: applicationId,
-      milestone_key: m.milestone_key,
-      milestone_label: m.milestone_label,
-      percentage: m.percentage,
+      milestone_key: m.key,
+      milestone_label: m.label,
+      percentage: m.pct,
       amount,
-      status: 'unpaid',
+      status: 'unpaid'
     };
   });
 
-  const { data: inserted, error } = await supabase
-    .from('invoices')
-    .insert(inserts)
-    .select();
-
-  if (error) return { success: false, invoices: [], error: error.message };
+  const { data: inserted, error } = await supabase.from('invoices').insert(inserts).select();
+  if (error) return { success: false, error: error.message };
 
   revalidatePath(`/admin/services/orders/${applicationId}`);
   return { success: true, invoices: inserted ?? [] };
 }
 
-// ── 3. CREATE PAYMENT LINK ────────────────────────────────────────────────────
+// 3. Generate Xendit links untuk semua termin yang belum punya link
+export async function generateAllMilestoneLinks(applicationId: string) {
+  const supabase = await createClient();
+  const { data: invoices } = await supabase
+    .from('invoices')
+    .select('id, milestone_key, status, xendit_invoice_url')
+    .eq('application_id', applicationId)
+    .neq('status', 'paid');
 
-/**
- * Buat invoice Xendit untuk satu termin.
- * Idempotent: bila link sudah ada dan status masih pending, kembalikan URL existing.
- */
-export async function createMilestonePaymentLink(
-  applicationId: string,
-  milestoneKey: MilestoneKey,
-) {
+  if (!invoices?.length) return { success: true };
+
+  for (const inv of invoices) {
+    if (inv.xendit_invoice_url) continue;
+    const key = inv.milestone_key as MilestoneKey;
+    if (key) await createMilestonePaymentLink(applicationId, key);
+  }
+
+  revalidatePath(`/admin/services/orders/${applicationId}`);
+  revalidatePath(`/client/applications/${applicationId}`);
+  return { success: true };
+}
+
+// 4. Buat Link Pembayaran Xendit (Real Integration)
+export async function createMilestonePaymentLink(applicationId: string, milestoneKey: MilestoneKey) {
   const supabase = await createClient();
 
-  // Ambil invoice
-  const { data: invoice, error: fetchErr } = await supabase
+  const { data: invoice } = await supabase
     .from('invoices')
     .select('*')
     .eq('application_id', applicationId)
     .eq('milestone_key', milestoneKey)
     .single();
 
-  if (fetchErr || !invoice) return { error: 'Invoice tidak ditemukan.' };
-  if (invoice.status === 'paid') return { error: 'Invoice ini sudah lunas.' };
+  if (!invoice) return { error: 'Invoice tidak ditemukan.' };
+  if (invoice.status === 'paid') return { error: 'Sudah lunas.' };
 
-  // Bila link sudah ada, kembalikan tanpa hit Xendit lagi
+  // Kembalikan link jika masih aktif (pending)
   if (invoice.xendit_invoice_url && invoice.status === 'pending') {
-    return { success: true, invoiceUrl: invoice.xendit_invoice_url as string };
+    return { success: true, invoiceUrl: invoice.xendit_invoice_url };
   }
 
-  // Ambil data aplikasi untuk deskripsi invoice
+  // Ambil data pelanggan untuk Xendit
   const { data: app } = await supabase
     .from('applications')
     .select(`
@@ -130,85 +123,41 @@ export async function createMilestonePaymentLink(
     .eq('id', applicationId)
     .single();
 
-  const profile = resolveRelation((app as any)?.profiles as { full_name?: string; email?: string } | { full_name?: string; email?: string }[] | null);
-  const service = resolveRelation((app as any)?.services as { name?: string } | { name?: string }[] | null);
+  const profile = resolveRelation((app as any)?.profiles);
+  const service = resolveRelation((app as any)?.services);
+  const description = `${invoice.milestone_label} - ${service?.name ?? 'Layanan'}${app?.company_name ? ` (${app.company_name})` : ''}`;
 
-  const clientName = profile?.full_name ?? 'Klien';
-  const clientEmail = profile?.email ?? undefined;
-  const serviceName = service?.name ?? 'Layanan';
-  const companyPart = (app as any)?.company_name ? ` (${(app as any).company_name})` : '';
-  const description = `${invoice.milestone_label} — ${serviceName}${companyPart} · ${clientName}`;
-
+  // External ID unik dengan timestamp untuk menghindari duplikasi Xendit jika link lama expired
   const externalId = `inv_${applicationId}_${milestoneKey}_${Date.now()}`;
-  const appUrl = process.env.NEXT_PUBLIC_APP_URL ?? 'http://localhost:3000';
+  const appUrl = process.env.NEXT_PUBLIC_APP_URL || 'http://localhost:3000';
 
   try {
-    const xenditInvoice = new Invoice({ secretKey: process.env.XENDIT_SECRET_KEY! });
-
-    const result = await xenditInvoice.createInvoice({
+    const xendit = new Invoice({ secretKey: process.env.XENDIT_SECRET_KEY! });
+    const response = await xendit.createInvoice({
       data: {
         externalId,
         amount: Number(invoice.amount),
         description,
-        payerEmail: clientEmail,
-        currency: 'IDR' as unknown as any,
+        payerEmail: profile?.email,
+        currency: 'IDR' as any,
         successRedirectUrl: `${appUrl}/client/applications/${applicationId}?payment=success`,
         failureRedirectUrl: `${appUrl}/client/applications/${applicationId}?payment=failed`,
-      },
+      }
     });
 
-    const { error: updateErr } = await supabase
+    await supabase
       .from('invoices')
       .update({
         xendit_external_id: externalId,
-        xendit_invoice_url: result.invoiceUrl,
+        xendit_invoice_url: response.invoiceUrl,
         status: 'pending',
-        updated_at: new Date().toISOString(),
+        updated_at: new Date().toISOString()
       })
       .eq('id', invoice.id);
 
-    if (updateErr) return { error: 'Gagal menyimpan link pembayaran ke database.' };
-
-    revalidatePath(`/admin/services/orders/${applicationId}`);
     revalidatePath(`/client/applications/${applicationId}`);
-
-    return { success: true, invoiceUrl: result.invoiceUrl };
-  } catch (err: unknown) {
-    const msg = err instanceof Error ? err.message : 'Gagal terhubung ke Xendit.';
-    console.error('[XENDIT] Gagal membuat invoice:', err);
-    return { error: msg };
+    return { success: true, invoiceUrl: response.invoiceUrl };
+  } catch (err) {
+    return { error: 'Gagal membuat invoice Xendit.' };
   }
-}
-
-// ── 4. BATCH GENERATE ─────────────────────────────────────────────────────────
-
-/**
- * Generate link Xendit untuk semua termin yang belum punya link.
- * Dipanggil dari handleSaveConfig setelah ensureMilestoneInvoices.
- */
-export async function generateAllMilestoneLinks(applicationId: string) {
-  const supabase = await createClient();
-
-  const { data: invoices } = await supabase
-    .from('invoices')
-    .select('milestone_key, status, xendit_invoice_url')
-    .eq('application_id', applicationId);
-
-  if (!invoices || invoices.length === 0) return { success: false, error: 'Tidak ada invoice.' };
-
-  const results: { key: string; ok: boolean; error?: string }[] = [];
-
-  for (const inv of invoices) {
-    if (inv.status === 'paid') continue;
-    if (inv.xendit_invoice_url && inv.status === 'pending') continue;
-
-    const res = await createMilestonePaymentLink(applicationId, inv.milestone_key as MilestoneKey);
-    results.push({ key: inv.milestone_key, ok: 'success' in res, error: 'error' in res ? res.error : undefined });
-  }
-
-  revalidatePath(`/admin/services/orders/${applicationId}`);
-  revalidatePath(`/client/applications/${applicationId}`);
-
-  const hasError = results.some((r) => !r.ok);
-  return { success: !hasError, results };
 }

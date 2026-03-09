@@ -16,7 +16,7 @@ import {
   XCircle,
   ShieldCheck,
   DownloadCloud,
-  FileCheck      
+  FileCheck
 } from 'lucide-react';
 import Link from 'next/link';
 import { format } from 'date-fns';
@@ -27,7 +27,7 @@ import { PaymentSuccessToast } from '@/components/payment/payment-success-toast'
 import { MilestoneInvoicesCard } from '@/components/payment/milestone-invoices-card';
 import { getMilestoneInvoices } from '@/actions/milestone-invoice-actions';
 
-// Definisi Tahapan Timeline
+// Definisi Tahapan Timeline (Konsisten dengan Admin)
 const TIMELINE_STEPS = [
   { id: 'pending', label: 'Pesanan Masuk', description: 'Admin sedang meninjau berkas Anda' },
   { id: 'quoted', label: 'Penawaran Harga', description: 'Segera lakukan pembayaran untuk lanjut' },

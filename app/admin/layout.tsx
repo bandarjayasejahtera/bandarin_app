@@ -1,4 +1,4 @@
-//app/admin/layout.tsx
+// app/admin/layout.tsx
 import React from 'react';
 import { createClient } from "@/utils/supabase/server";
 import { redirect } from "next/navigation";
@@ -11,7 +11,8 @@ import {
   Settings, 
   LogOut, 
   ShieldCheck, 
-  Menu
+  Menu,
+  Database
 } from "lucide-react";
 import { Button } from "@/components/ui/button";
 import { ThemeToggle } from "@/components/ui/theme-toggle";
@@ -45,13 +46,15 @@ export default async function AdminLayout({ children }: { children: React.ReactN
     redirect("/login"); 
   }
 
+  // --- MENU NAVIGASI DIPERBARUI ---
   const navItems = [
     { label: 'Overview', href: '/admin', icon: LayoutDashboard },
     { label: 'Manajemen Layanan', href: '/admin/services', icon: Layers },
     { label: 'Daftar Pesanan', href: '/admin/services/orders', icon: FileText },
-    { label: 'Database Klien', href: '/admin/clients', icon: Users },
-    { label: 'Agen Instansi', href: '/admin/agents', icon: Users },
-    { label: 'Out Sourcing', href: '/admin/outsrc', icon: Users },
+    { label: 'Daftar Klien', href: '/admin/clients', icon: Users },
+    { label: 'Agen Instansi', href: '/admin/agents', icon: Briefcase }, // <-- Ikon dibedakan sedikit
+    { label: 'Out Sourcing', href: '/admin/outsrc', icon: Truck },      // <-- Ikon dibedakan sedikit
+    { label: 'Database Profil', href: '/admin/profiles', icon: Database }, // <-- TAMBAHAN BARU
     { label: 'Pengaturan CRM', href: '/admin/settings', icon: Settings },
   ];
 
@@ -152,3 +155,6 @@ export default async function AdminLayout({ children }: { children: React.ReactN
     </div>
   );
 }
+
+// Komponen ikon tambahan agar tidak error
+import { Briefcase, Truck } from "lucide-react";
