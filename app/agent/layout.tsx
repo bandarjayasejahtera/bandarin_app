@@ -2,8 +2,7 @@
 import { createClient } from "@/utils/supabase/server";
 import { redirect } from "next/navigation";
 import Link from "next/link";
-import { Briefcase, User, LogOut } from "lucide-react";
-import { Button } from "@/components/ui/button";
+import { Briefcase, User, LogOut, ShieldCheck } from "lucide-react";
 
 export default async function AgentLayout({ children }: { children: React.ReactNode }) {
   const supabase = await createClient();
@@ -11,52 +10,75 @@ export default async function AgentLayout({ children }: { children: React.ReactN
 
   if (!user) redirect("/login");
 
-  // Ambil nama agent
   const { data: agentProfile } = await supabase
     .from("agents")
     .select("name, agency_name")
     .eq("user_id", user.id)
     .single();
 
+  const initial = agentProfile?.name?.charAt(0)?.toUpperCase() || "A";
+
   return (
-    <div className="min-h-screen bg-slate-50 flex flex-col">
-      {/* Mobile Topbar */}
-      <header className="bg-sky-600 text-white sticky top-0 z-50 shadow-md px-4 py-3 flex items-center justify-between">
-        <div>
-          <h1 className="font-extrabold text-lg leading-tight">Agent Portal</h1>
-          <p className="text-[10px] text-sky-100 uppercase tracking-widest font-medium">
-            {agentProfile?.agency_name || "Tim Lapangan"}
-          </p>
-        </div>
-        <div className="flex items-center gap-2">
-          <div className="h-8 w-8 rounded-full bg-white/20 flex items-center justify-center font-bold text-sm">
-            {agentProfile?.name?.charAt(0) || "A"}
+    <div className="min-h-screen bg-cool-steel-50 flex flex-col">
+
+      {/* ── TOP BAR ────────────────────────────────────────────────── */}
+      <header className="bg-deep-space-blue-950 sticky top-0 z-50 border-b border-white/5">
+        <div className="flex items-center justify-between px-5 py-3.5 max-w-lg mx-auto">
+          {/* Brand */}
+          <div className="flex items-center gap-3">
+            <div className="h-9 w-9 rounded-xl bg-tuscan-sun-500 flex items-center justify-center shadow-[0_0_14px_rgba(232,169,23,0.35)]">
+              <ShieldCheck className="h-5 w-5 text-deep-space-blue-950" />
+            </div>
+            <div className="leading-none">
+              <p className="text-[15px] font-black tracking-tight text-white">
+                Bandarin <span className="text-tuscan-sun-400">Agent</span>
+              </p>
+              <p className="text-[10px] font-bold uppercase tracking-[0.18em] text-cool-steel-400 mt-0.5">
+                {agentProfile?.agency_name || "Official Partner"}
+              </p>
+            </div>
+          </div>
+
+          {/* Avatar */}
+          <div className="h-9 w-9 rounded-full ring-2 ring-tuscan-sun-500/60 bg-deep-space-blue-800 flex items-center justify-center">
+            <span className="text-sm font-black text-tuscan-sun-400">{initial}</span>
           </div>
         </div>
       </header>
 
-      {/* Main Content Area */}
-      <main className="flex-1 w-full max-w-md mx-auto p-4 pb-24">
+      {/* ── CONTENT ────────────────────────────────────────────────── */}
+      <main className="flex-1 w-full max-w-lg mx-auto px-4 pt-5 pb-28">
         {children}
       </main>
 
-      {/* Mobile Bottom Navigation */}
-      <nav className="fixed bottom-0 w-full bg-white border-t border-slate-200 flex justify-around p-2 pb-safe shadow-[0_-4px_20px_rgba(0,0,0,0.05)] z-50 lg:max-w-md lg:left-1/2 lg:-translate-x-1/2 lg:rounded-t-2xl lg:border-x">
-        <Link href="/agent" className="flex flex-col items-center p-2 text-sky-600">
-          <Briefcase className="h-6 w-6 mb-1" />
-          <span className="text-[10px] font-bold">Tugas</span>
-        </Link>
-        <Link href="/agent/profile" className="flex flex-col items-center p-2 text-slate-400 hover:text-sky-600 transition-colors">
-          <User className="h-6 w-6 mb-1" />
-          <span className="text-[10px] font-bold">Profil</span>
-        </Link>
-        <form action="/auth/signout" method="post" className="flex">
-          <button type="submit" className="flex flex-col items-center p-2 text-slate-400 hover:text-red-500 transition-colors">
-            <LogOut className="h-6 w-6 mb-1" />
-            <span className="text-[10px] font-bold">Keluar</span>
-          </button>
-        </form>
+      {/* ── BOTTOM NAV ─────────────────────────────────────────────── */}
+      <nav className="fixed bottom-4 inset-x-0 flex justify-center z-50 pointer-events-none">
+        <div className="pointer-events-auto flex items-center gap-1 bg-deep-space-blue-950/95 backdrop-blur-sm border border-white/10 rounded-2xl px-2 py-2 shadow-[0_8px_32px_rgba(0,0,0,0.35)]">
+          <NavItem href="/agent" icon={<Briefcase className="h-5 w-5" />} label="Tugas" />
+          <NavItem href="/agent/profile" icon={<User className="h-5 w-5" />} label="Profil" />
+          <form action="/auth/signout" method="post">
+            <button
+              type="submit"
+              className="flex flex-col items-center gap-1 px-5 py-2 rounded-xl text-cool-steel-400 hover:text-red-400 transition-colors"
+            >
+              <LogOut className="h-5 w-5" />
+              <span className="text-[10px] font-bold">Keluar</span>
+            </button>
+          </form>
+        </div>
       </nav>
     </div>
+  );
+}
+
+function NavItem({ href, icon, label }: { href: string; icon: React.ReactNode; label: string }) {
+  return (
+    <Link
+      href={href}
+      className="flex flex-col items-center gap-1 px-5 py-2 rounded-xl text-cool-steel-400 hover:text-tuscan-sun-400 transition-colors"
+    >
+      {icon}
+      <span className="text-[10px] font-bold">{label}</span>
+    </Link>
   );
 }

@@ -4,105 +4,212 @@ import { redirect } from "next/navigation";
 import Link from "next/link";
 import { format } from "date-fns";
 import { id as idLocale } from "date-fns/locale";
-import { Card, CardContent } from "@/components/ui/card";
 import { Badge } from "@/components/ui/badge";
-import { MapPin, Calendar, ArrowRight, ClipboardList } from "lucide-react";
+import {
+  MapPin, Calendar, ArrowRight, ClipboardList,
+  CheckCircle2, Clock, AlertCircle, Zap,
+} from "lucide-react";
+import { cn } from "@/lib/applicationSchema/utils";
 
+// ── Status config ──────────────────────────────────────────────────────────────
+const STATUS_CONFIG: Record<string, { label: string; color: string; bg: string; icon: typeof Clock }> = {
+  process: { label: "Proses", color: "text-sky-700",     bg: "bg-sky-50 border-sky-200",     icon: Clock },
+  review:  { label: "Review", color: "text-violet-700",  bg: "bg-violet-50 border-violet-200", icon: AlertCircle },
+  completed:{ label: "Selesai", color: "text-emerald-700", bg: "bg-emerald-50 border-emerald-200", icon: CheckCircle2 },
+};
+
+function getStatusCfg(status: string) {
+  return STATUS_CONFIG[status] ?? { label: status, color: "text-cool-steel-600", bg: "bg-cool-steel-100 border-cool-steel-200", icon: Clock };
+}
+
+// ── Page ───────────────────────────────────────────────────────────────────────
 export default async function AgentDashboard() {
   const supabase = await createClient();
+
   const { data: { user } } = await supabase.auth.getUser();
   if (!user) redirect("/login");
 
-  // 1. Cari ID Agent berdasarkan user yang login
+  // Agent profile
   const { data: agent } = await supabase
     .from("agents")
-    .select("id, name")
+    .select("id, name, agency_name")
     .eq("user_id", user.id)
     .single();
 
   if (!agent) {
     return (
-      <div className="text-center py-20">
-        <h2 className="text-lg font-bold text-slate-800">Akun Belum Terhubung</h2>
-        <p className="text-sm text-slate-500 mt-2">Silakan hubungi Admin untuk menghubungkan akun login Anda dengan profil Agent.</p>
+      <div className="flex flex-col items-center justify-center py-24 text-center px-6">
+        <div className="h-16 w-16 rounded-2xl bg-cool-steel-100 flex items-center justify-center mb-4">
+          <AlertCircle className="h-8 w-8 text-cool-steel-400" />
+        </div>
+        <h2 className="text-base font-black text-deep-space-blue-950">Akun Belum Terhubung</h2>
+        <p className="text-sm text-cool-steel-500 mt-2 max-w-xs">
+          Hubungi Admin Bandarin untuk menghubungkan akun Anda dengan profil Agent.
+        </p>
       </div>
     );
   }
 
-  // 2. Ambil Tugas (Applications) yang di-assign ke Agent ini
-  const { data: tasks, error } = await supabase
+  // Active tasks
+  const { data: rawTasks } = await supabase
     .from("applications")
-    .select(`
-      id,
-      status,
-      sub_status,
-      created_at,
-      services (name),
-      profiles (full_name)
-    `)
+    .select("id, status, sub_status, created_at, service_id, user_id")
     .eq("assigned_agent_id", agent.id)
-    .in("status", ["process", "review"]) // Hanya tampilkan yang sedang jalan
+    .in("status", ["process", "review"])
     .order("created_at", { ascending: false });
 
-  if (error) console.error("Error fetching tasks:", error.message);
+  type Task = {
+    id: string; status: string; sub_status: string | null;
+    created_at: string; service_id: string; user_id: string;
+    serviceName: string; clientName: string;
+  };
 
-  const activeTasks = tasks || [];
+  let tasks: Task[] = (rawTasks || []).map((t) => ({
+    ...t, serviceName: "Layanan Legal", clientName: "Klien Anonim",
+  }));
+
+  if (tasks.length > 0) {
+    const serviceIds = [...new Set(tasks.map((t) => t.service_id))];
+    const userIds = [...new Set(tasks.map((t) => t.user_id))];
+
+    const [{ data: services }, { data: profiles }] = await Promise.all([
+      supabase.from("services").select("id, name").in("id", serviceIds),
+      supabase.from("profiles").select("id, full_name").in("id", userIds),
+    ]);
+
+    tasks = tasks.map((t) => ({
+      ...t,
+      serviceName: services?.find((s) => s.id === t.service_id)?.name ?? "Layanan Legal",
+      clientName:  profiles?.find((p) => p.id === t.user_id)?.full_name ?? "Klien Anonim",
+    }));
+  }
+
+  const firstName = agent.name?.split(" ")[0] || "Agent";
 
   return (
-    <div className="space-y-5 animate-in fade-in zoom-in duration-500">
-      <div>
-        <h2 className="text-xl font-black text-slate-800 tracking-tight">Halo, {agent.name.split(' ')[0]}! 👋</h2>
-        <p className="text-sm text-slate-500 font-medium mt-1">Anda memiliki {activeTasks.length} berkas yang sedang dikawal hari ini.</p>
+    <div className="space-y-6 animate-in fade-in duration-300">
+
+      {/* ── GREETING ──────────────────────────────────────────────── */}
+      <div className="pt-1">
+        <div className="flex items-center gap-1.5 text-tuscan-sun-600 font-bold text-[11px] uppercase tracking-[0.18em] mb-1">
+          <Zap className="h-3 w-3" />
+          Dashboard Agent
+        </div>
+        <h1 className="text-[26px] font-black text-deep-space-blue-950 tracking-tight leading-none">
+          Halo, {firstName}! 👋
+        </h1>
+        <p className="text-sm text-cool-steel-500 font-medium mt-1.5">
+          {tasks.length > 0
+            ? `${tasks.length} berkas aktif sedang Anda kawal.`
+            : "Tidak ada tugas aktif saat ini."}
+        </p>
       </div>
 
-      <div className="space-y-4">
-        {activeTasks.length === 0 ? (
-          <div className="flex flex-col items-center justify-center py-16 bg-white rounded-3xl border border-dashed border-slate-200">
-            <div className="h-16 w-16 bg-slate-50 rounded-full flex items-center justify-center mb-4">
-              <ClipboardList className="h-8 w-8 text-slate-300" />
+      {/* ── STAT PILL ─────────────────────────────────────────────── */}
+      <div className="grid grid-cols-2 gap-3">
+        <StatCard
+          value={tasks.length}
+          label="Berkas Aktif"
+          accent="bg-deep-space-blue-950"
+          textColor="text-white"
+        />
+        <StatCard
+          value={tasks.filter((t) => t.status === "review").length}
+          label="Siap Review"
+          accent="bg-tuscan-sun-500"
+          textColor="text-deep-space-blue-950"
+        />
+      </div>
+
+      {/* ── TASK LIST ─────────────────────────────────────────────── */}
+      <section className="space-y-3">
+        <h2 className="text-[11px] font-black uppercase tracking-[0.18em] text-cool-steel-400">
+          Tugas Berjalan
+        </h2>
+
+        {tasks.length === 0 ? (
+          <div className="flex flex-col items-center justify-center py-16 bg-white rounded-3xl border border-dashed border-cool-steel-200">
+            <div className="h-14 w-14 bg-cool-steel-50 rounded-full flex items-center justify-center mb-3">
+              <ClipboardList className="h-7 w-7 text-cool-steel-300" />
             </div>
-            <p className="font-bold text-slate-600">Belum ada tugas.</p>
-            <p className="text-xs text-slate-400 mt-1">Anda bisa bersantai sejenak! ☕</p>
+            <p className="font-bold text-cool-steel-500 text-sm">Belum ada tugas.</p>
+            <p className="text-xs text-cool-steel-400 mt-1">Bersantai dulu! ☕</p>
           </div>
         ) : (
-          activeTasks.map((task: any) => {
-            const serviceName = Array.isArray(task.services) ? task.services[0]?.name : task.services?.name;
-            const clientName = Array.isArray(task.profiles) ? task.profiles[0]?.full_name : task.profiles?.full_name;
-
-            return (
-              <Link href={`/agent/orders/${task.id}`} key={task.id} className="block group">
-                <Card className="rounded-2xl border-slate-200/80 shadow-sm group-hover:border-sky-300 group-hover:shadow-md transition-all duration-200 relative overflow-hidden">
-                  <div className="absolute left-0 top-0 bottom-0 w-1.5 bg-sky-500" />
-                  <CardContent className="p-4 pl-5">
-                    <div className="flex justify-between items-start mb-2">
-                      <Badge variant="outline" className="text-[10px] font-extrabold uppercase tracking-wider bg-slate-50 text-slate-500 border-slate-200">
-                        {task.status}
-                      </Badge>
-                      <span className="text-[10px] font-bold text-slate-400 flex items-center">
-                        <Calendar className="h-3 w-3 mr-1" />
-                        {format(new Date(task.created_at), "dd MMM", { locale: idLocale })}
-                      </span>
-                    </div>
-                    
-                    <h3 className="font-black text-slate-800 leading-tight mb-1">{serviceName || "Layanan Legal"}</h3>
-                    <p className="text-xs font-medium text-slate-500 mb-3">{clientName || "Klien Anonim"}</p>
-
-                    <div className="flex items-center justify-between pt-3 border-t border-slate-100">
-                      <div className="flex items-center text-xs font-bold text-sky-700 bg-sky-50 px-2 py-1 rounded-lg">
-                        <MapPin className="h-3.5 w-3.5 mr-1.5" />
-                        {task.sub_status || "Menunggu Penempatan"}
-                      </div>
-                      <div className="h-8 w-8 rounded-full bg-slate-50 flex items-center justify-center group-hover:bg-sky-100 group-hover:text-sky-600 transition-colors">
-                        <ArrowRight className="h-4 w-4" />
-                      </div>
-                    </div>
-                  </CardContent>
-                </Card>
-              </Link>
-            )
-          })
+          tasks.map((task) => <TaskCard key={task.id} task={task} />)
         )}
-      </div>
+      </section>
     </div>
+  );
+}
+
+// ── Sub-components ─────────────────────────────────────────────────────────────
+
+function StatCard({
+  value, label, accent, textColor,
+}: {
+  value: number; label: string; accent: string; textColor: string;
+}) {
+  return (
+    <div className={cn("rounded-2xl p-4 flex flex-col gap-1 shadow-sm", accent)}>
+      <span className={cn("text-3xl font-black leading-none", textColor)}>{value}</span>
+      <span className={cn("text-[11px] font-bold uppercase tracking-wider opacity-75", textColor)}>
+        {label}
+      </span>
+    </div>
+  );
+}
+
+function TaskCard({ task }: { task: { id: string; status: string; sub_status: string | null; created_at: string; serviceName: string; clientName: string } }) {
+  const cfg = getStatusCfg(task.status);
+  const Icon = cfg.icon;
+
+  return (
+    <Link href={`/agent/orders/${task.id}`} className="block group">
+      <div className="bg-white rounded-2xl border border-cool-steel-100 shadow-sm group-hover:border-tuscan-sun-300 group-hover:shadow-md transition-all duration-200 overflow-hidden">
+        {/* Accent strip */}
+        <div className={cn("h-1 w-full", task.status === "review" ? "bg-violet-500" : "bg-sky-500")} />
+
+        <div className="p-4">
+          {/* Top row */}
+          <div className="flex items-start justify-between gap-3 mb-3">
+            <div className="flex-1 min-w-0">
+              <h3 className="font-black text-deep-space-blue-950 text-sm leading-tight truncate">
+                {task.serviceName}
+              </h3>
+              <p className="text-[11px] font-semibold text-cool-steel-500 mt-0.5 truncate">
+                {task.clientName}
+              </p>
+            </div>
+            <Badge
+              variant="outline"
+              className={cn("shrink-0 border text-[10px] font-black uppercase tracking-wider", cfg.bg, cfg.color)}
+            >
+              <Icon className="h-2.5 w-2.5 mr-1" />
+              {cfg.label}
+            </Badge>
+          </div>
+
+          {/* Bottom row */}
+          <div className="flex items-center justify-between pt-3 border-t border-cool-steel-100">
+            <div className="flex items-center gap-3 text-[11px] font-semibold text-cool-steel-400">
+              {task.sub_status && (
+                <span className="flex items-center gap-1 bg-sky-50 text-sky-700 border border-sky-200 px-2 py-0.5 rounded-lg font-bold">
+                  <MapPin className="h-3 w-3" />
+                  {task.sub_status}
+                </span>
+              )}
+              <span className="flex items-center gap-1">
+                <Calendar className="h-3 w-3" />
+                {format(new Date(task.created_at), "dd MMM", { locale: idLocale })}
+              </span>
+            </div>
+            <div className="h-7 w-7 rounded-full bg-cool-steel-50 border border-cool-steel-200 flex items-center justify-center group-hover:bg-tuscan-sun-400 group-hover:border-tuscan-sun-400 transition-colors">
+              <ArrowRight className="h-3.5 w-3.5 text-cool-steel-400 group-hover:text-white transition-colors" />
+            </div>
+          </div>
+        </div>
+      </div>
+    </Link>
   );
 }
